@@ -127,6 +127,9 @@ mod tests {
 
         token = lexer.next_token();
         assert_eq!(token, Token::MinusSign);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EOF);
     }
 
     #[test]
@@ -158,6 +161,9 @@ mod tests {
 
         token = lexer.next_token();
         assert_eq!(token, Token::Integer(558));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EOF);
     }
 
     #[test]
@@ -172,16 +178,60 @@ mod tests {
 
         token = lexer.next_token();
         assert_eq!(token, Token::Integer(55));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EOF);
     }
 
     #[test]
     fn lexing_basic_statement() {
-        let s = String::from("let a = 0;");
+        let s = String::from("let a = 71-1+1;");
         let mut lexer = Lexer::new(s);
         let mut token: Token = lexer.next_token();
         assert_eq!(token, Token::Keyword(Keyword::Let));
 
         token = lexer.next_token();
         assert_eq!(token, Token::Identifier(String::from("a")));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EqualSign);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Integer(71));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::MinusSign);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Integer(1));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::PlusSign);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Integer(1));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Semicolon);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EOF);
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::EOF);
+    }
+
+    #[test]
+    fn test_illegal_chars() {
+        let s = String::from("1?2!3(");
+        let mut lexer = Lexer::new(s);
+
+        assert_eq!(lexer.next_token(), Token::Integer(1));
+        assert_eq!(lexer.next_token(), Token::Illegal);
+        assert_eq!(lexer.next_token(), Token::Integer(2));
+        assert_eq!(lexer.next_token(), Token::Illegal);
+        assert_eq!(lexer.next_token(), Token::Integer(3));
+        assert_eq!(lexer.next_token(), Token::Illegal);
+        assert_eq!(lexer.next_token(), Token::EOF);
     }
 }
