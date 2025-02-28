@@ -51,10 +51,10 @@ impl Lexer {
             ';' => Token::Semicolon,
             '+' => Token::PlusSign,
             '-' => Token::MinusSign,
-            ' ' => {
+            ' ' | '\t' => {
                 while let Some(i) = chars.next() {
                     match i {
-                        ' ' => self.curr_index += 1,
+                        ' ' | '\t' => self.curr_index += 1,
                         _ => break,
                     }
                 }
@@ -142,7 +142,21 @@ mod tests {
     }
 
     #[test]
-    fn lexing_basic_text() {
+    fn multiple_whitespaces() {
+        let s = String::from("1 \t\t  2   \t\t  55");
+        let mut lexer = Lexer::new(s);
+        let mut token: Token = lexer.next_token();
+        assert_eq!(token, Token::Integer(1));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Integer(2));
+
+        token = lexer.next_token();
+        assert_eq!(token, Token::Integer(55));
+    }
+
+    #[test]
+    fn lexing_basic_statement() {
         let s = String::from("let a = 0;");
         let mut lexer = Lexer::new(s);
         let mut token: Token = lexer.next_token();
