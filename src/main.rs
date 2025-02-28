@@ -12,7 +12,7 @@ enum Token {
     Identifier(String),
     Keyword(Keyword),
     Integer(usize),
-    Illegal,
+    Illegal(char),
     EqualSign,
     PlusSign,
     MinusSign,
@@ -45,7 +45,7 @@ impl Lexer {
         let char = chars.nth(self.curr_index).unwrap();
 
         self.curr_index += 1;
-        let token = match char {
+        match char {
             ',' => Token::Comma,
             '=' => Token::EqualSign,
             ';' => Token::Semicolon,
@@ -93,9 +93,8 @@ impl Lexer {
                     _ => Token::Identifier(word),
                 }
             }
-            _ => Token::Illegal,
-        };
-        token
+            _ => Token::Illegal(char),
+        }
     }
 }
 
@@ -112,126 +111,70 @@ mod tests {
     #[test]
     fn lexing_signs() {
         let s = String::from("+ = ; , -");
-        let mut lexer = Lexer::new(s);
-        let mut token: Token = lexer.next_token();
-        assert_eq!(token, Token::PlusSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EqualSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Semicolon);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Comma);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::MinusSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
+        let mut l = Lexer::new(s);
+        assert_eq!(l.next_token(), Token::PlusSign);
+        assert_eq!(l.next_token(), Token::EqualSign);
+        assert_eq!(l.next_token(), Token::Semicolon);
+        assert_eq!(l.next_token(), Token::Comma);
+        assert_eq!(l.next_token(), Token::MinusSign);
+        assert_eq!(l.next_token(), Token::EOF);
     }
 
     #[test]
     fn lexing_numbers() {
         let s = String::from("1 2; 3; 44,,558");
-        let mut lexer = Lexer::new(s);
-        let mut token: Token = lexer.next_token();
-        assert_eq!(token, Token::Integer(1));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(2));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Semicolon);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(3));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Semicolon);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(44));
-
-        let comma1 = lexer.next_token();
-        let comma2 = lexer.next_token();
-        assert_eq!(comma1, Token::Comma);
-        assert_eq!(comma2, Token::Comma);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(558));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
+        let mut l = Lexer::new(s);
+        assert_eq!(l.next_token(), Token::Integer(1));
+        assert_eq!(l.next_token(), Token::Integer(2));
+        assert_eq!(l.next_token(), Token::Semicolon);
+        assert_eq!(l.next_token(), Token::Integer(3));
+        assert_eq!(l.next_token(), Token::Semicolon);
+        assert_eq!(l.next_token(), Token::Integer(44));
+        assert_eq!(l.next_token(), Token::Comma);
+        assert_eq!(l.next_token(), Token::Comma);
+        assert_eq!(l.next_token(), Token::Integer(558));
+        assert_eq!(l.next_token(), Token::EOF);
     }
 
     #[test]
     fn multiple_whitespaces() {
         let s = String::from("1 \t\t  2   \t\t  55");
-        let mut lexer = Lexer::new(s);
-        let mut token: Token = lexer.next_token();
-        assert_eq!(token, Token::Integer(1));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(2));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(55));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
+        let mut l = Lexer::new(s);
+        assert_eq!(l.next_token(), Token::Integer(1));
+        assert_eq!(l.next_token(), Token::Integer(2));
+        assert_eq!(l.next_token(), Token::Integer(55));
+        assert_eq!(l.next_token(), Token::EOF);
     }
 
     #[test]
     fn lexing_basic_statement() {
         let s = String::from("let a = 71-1+1;");
-        let mut lexer = Lexer::new(s);
-        let mut token: Token = lexer.next_token();
-        assert_eq!(token, Token::Keyword(Keyword::Let));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Identifier(String::from("a")));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EqualSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(71));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::MinusSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(1));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::PlusSign);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Integer(1));
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::Semicolon);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
-
-        token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
+        let mut l = Lexer::new(s);
+        assert_eq!(l.next_token(), Token::Keyword(Keyword::Let));
+        assert_eq!(l.next_token(), Token::Identifier(String::from("a")));
+        assert_eq!(l.next_token(), Token::EqualSign);
+        assert_eq!(l.next_token(), Token::Integer(71));
+        assert_eq!(l.next_token(), Token::MinusSign);
+        assert_eq!(l.next_token(), Token::Integer(1));
+        assert_eq!(l.next_token(), Token::PlusSign);
+        assert_eq!(l.next_token(), Token::Integer(1));
+        assert_eq!(l.next_token(), Token::Semicolon);
+        assert_eq!(l.next_token(), Token::EOF);
+        assert_eq!(l.next_token(), Token::EOF);
     }
 
     #[test]
     fn test_illegal_chars() {
-        let s = String::from("1?2!3(");
-        let mut lexer = Lexer::new(s);
-
-        assert_eq!(lexer.next_token(), Token::Integer(1));
-        assert_eq!(lexer.next_token(), Token::Illegal);
-        assert_eq!(lexer.next_token(), Token::Integer(2));
-        assert_eq!(lexer.next_token(), Token::Illegal);
-        assert_eq!(lexer.next_token(), Token::Integer(3));
-        assert_eq!(lexer.next_token(), Token::Illegal);
-        assert_eq!(lexer.next_token(), Token::EOF);
+        let s = String::from("1?2!3$");
+        let mut l = Lexer::new(s);
+        assert_eq!(l.next_token(), Token::Integer(1));
+        assert_eq!(l.next_token(), Token::Illegal('?'));
+        assert_eq!(l.next_token(), Token::Integer(2));
+        assert_eq!(l.next_token(), Token::Illegal('!'));
+        assert_eq!(l.next_token(), Token::Integer(3));
+        assert_eq!(l.next_token(), Token::Illegal('$'));
+        assert_eq!(l.next_token(), Token::EOF);
+        assert_eq!(l.next_token(), Token::EOF);
+        assert_eq!(l.next_token(), Token::EOF);
     }
 }
