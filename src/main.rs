@@ -74,6 +74,25 @@ impl Lexer {
                 }
                 Token::Integer(usize::from_str_radix(&number, 10).unwrap_or(0))
             }
+            'a'..'z' | 'A'..'Z' => {
+                let mut word: String = String::from(char);
+                while let Some(i) = chars.next() {
+                    match i {
+                        'a'..'z' | 'A'..'Z' => {
+                            word.push(i);
+                            self.curr_index += 1;
+                        }
+                        _ => break,
+                    }
+                }
+
+                match word.as_str() {
+                    "let" => Token::Keyword(Keyword::Let),
+                    "return" => Token::Keyword(Keyword::Return),
+                    "fn" => Token::Keyword(Keyword::Fn),
+                    _ => Token::Identifier(word),
+                }
+            }
             _ => Token::Illegal,
         };
         token
