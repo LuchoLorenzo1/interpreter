@@ -43,7 +43,7 @@ impl Iterator for Lexer<'_> {
             None => return None,
         };
 
-        let t = match char {
+        Some(match char {
             ',' => Token::Comma,
             '=' => Token::EqualSign,
             ';' => Token::Semicolon,
@@ -95,10 +95,8 @@ impl Iterator for Lexer<'_> {
                     _ => Token::Identifier(word),
                 }
             }
-            _ => Token::Illegal('a'),
-        };
-
-        Some(t)
+            _ => Token::Illegal(char),
+        })
     }
 }
 
@@ -109,62 +107,68 @@ mod tests {
     #[test]
     fn lexing_signs() {
         let s = String::from("+ = ; , -");
-        let mut l = Lexer::new(s);
-        assert_eq!(l.next_token(), Token::PlusSign);
-        assert_eq!(l.next_token(), Token::EqualSign);
-        assert_eq!(l.next_token(), Token::Semicolon);
-        assert_eq!(l.next_token(), Token::Comma);
-        assert_eq!(l.next_token(), Token::MinusSign);
+        let mut l = Lexer::new(&s);
+        assert_eq!(l.next().unwrap(), Token::PlusSign);
+        assert_eq!(l.next().unwrap(), Token::EqualSign);
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::Comma);
+        assert_eq!(l.next().unwrap(), Token::MinusSign);
+        assert_eq!(l.next(), None);
     }
 
     #[test]
     fn lexing_numbers() {
         let s = String::from("1 2; 3; 44,,558");
-        let mut l = Lexer::new(s);
-        assert_eq!(l.next_token(), Token::Integer(1));
-        assert_eq!(l.next_token(), Token::Integer(2));
-        assert_eq!(l.next_token(), Token::Semicolon);
-        assert_eq!(l.next_token(), Token::Integer(3));
-        assert_eq!(l.next_token(), Token::Semicolon);
-        assert_eq!(l.next_token(), Token::Integer(44));
-        assert_eq!(l.next_token(), Token::Comma);
-        assert_eq!(l.next_token(), Token::Comma);
-        assert_eq!(l.next_token(), Token::Integer(558));
+        let mut l = Lexer::new(&s);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::Integer(2));
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::Integer(3));
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::Integer(44));
+        assert_eq!(l.next().unwrap(), Token::Comma);
+        assert_eq!(l.next().unwrap(), Token::Comma);
+        assert_eq!(l.next().unwrap(), Token::Integer(558));
+        assert_eq!(l.next(), None);
+        assert_eq!(l.next(), None);
     }
 
     #[test]
     fn multiple_whitespaces() {
         let s = String::from("1 \t\t  2   \t\t  55");
-        let mut l = Lexer::new(s);
-        assert_eq!(l.next_token(), Token::Integer(1));
-        assert_eq!(l.next_token(), Token::Integer(2));
-        assert_eq!(l.next_token(), Token::Integer(55));
+        let mut l = Lexer::new(&s);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::Integer(2));
+        assert_eq!(l.next().unwrap(), Token::Integer(55));
+        assert_eq!(l.next(), None);
     }
 
     #[test]
     fn lexing_basic_statement() {
         let s = String::from("let a = 71-1+1;");
-        let mut l = Lexer::new(s);
-        assert_eq!(l.next_token(), Token::Keyword(Keyword::Let));
-        assert_eq!(l.next_token(), Token::Identifier(String::from("a")));
-        assert_eq!(l.next_token(), Token::EqualSign);
-        assert_eq!(l.next_token(), Token::Integer(71));
-        assert_eq!(l.next_token(), Token::MinusSign);
-        assert_eq!(l.next_token(), Token::Integer(1));
-        assert_eq!(l.next_token(), Token::PlusSign);
-        assert_eq!(l.next_token(), Token::Integer(1));
-        assert_eq!(l.next_token(), Token::Semicolon);
+        let mut l = Lexer::new(&s);
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
+        assert_eq!(l.next().unwrap(), Token::Identifier(String::from("a")));
+        assert_eq!(l.next().unwrap(), Token::EqualSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(71));
+        assert_eq!(l.next().unwrap(), Token::MinusSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::PlusSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next(), None);
     }
 
     #[test]
     fn test_illegal_chars() {
         let s = String::from("1?2!3$");
-        let mut l = Lexer::new(s);
-        assert_eq!(l.next_token(), Token::Integer(1));
-        assert_eq!(l.next_token(), Token::Illegal('?'));
-        assert_eq!(l.next_token(), Token::Integer(2));
-        assert_eq!(l.next_token(), Token::Illegal('!'));
-        assert_eq!(l.next_token(), Token::Integer(3));
-        assert_eq!(l.next_token(), Token::Illegal('$'));
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::Illegal('?'));
+        assert_eq!(l.next().unwrap(), Token::Integer(2));
+        assert_eq!(l.next().unwrap(), Token::Illegal('!'));
+        assert_eq!(l.next().unwrap(), Token::Integer(3));
+        assert_eq!(l.next().unwrap(), Token::Illegal('$'));
+        assert_eq!(l.next(), None);
     }
 }

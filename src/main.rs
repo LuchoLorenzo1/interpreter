@@ -1,7 +1,7 @@
 use interpreter::lexer::Lexer;
 
 fn main() {
-    let s = String::from("let messi = 1234-1234;");
+    let s = String::from("1?2!3$");
     let l = Lexer::new(&s).into_iter();
 
     for i in l.into_iter() {
