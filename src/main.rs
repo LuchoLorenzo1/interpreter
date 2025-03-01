@@ -5,8 +5,6 @@ fn main() {
     let l = Lexer::new(&s).into_iter();
     let mut parser = Parser::new(l);
 
-    parser.parse_ast();
-
     for statement in parser.statements {
         println!("{:?}", statement);
     }
