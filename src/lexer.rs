@@ -20,6 +20,11 @@ pub enum Token {
     MinusSign,
     Comma,
     Semicolon,
+    OpenParenthesis,
+    CloseParenthesis,
+    OpenBrace,
+    CloseBrace,
+    Quote,
 }
 
 pub struct Lexer<'a> {
@@ -49,6 +54,11 @@ impl Iterator for Lexer<'_> {
             ';' => Token::Semicolon,
             '+' => Token::PlusSign,
             '-' => Token::MinusSign,
+            '(' => Token::OpenParenthesis,
+            ')' => Token::CloseParenthesis,
+            '{' => Token::OpenBrace,
+            '}' => Token::CloseBrace,
+            '"' => Token::Quote,
             ' ' | '\t' => {
                 while let Some(i) = self.chars.peek() {
                     match i {
@@ -76,11 +86,11 @@ impl Iterator for Lexer<'_> {
                 }
                 Token::Integer(usize::from_str_radix(&number, 10).unwrap_or(0))
             }
-            'a'..'z' | 'A'..'Z' => {
+            'a'..='z' | 'A'..='Z' => {
                 let mut word: String = String::from(char);
                 while let Some(i) = self.chars.peek() {
                     match i {
-                        'a'..'z' | 'A'..'Z' => {
+                        'a'..='z' | 'A'..='Z' => {
                             word.push(*i);
                             self.chars.next();
                         }
@@ -169,6 +179,23 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::Illegal('!'));
         assert_eq!(l.next().unwrap(), Token::Integer(3));
         assert_eq!(l.next().unwrap(), Token::Illegal('$'));
+        assert_eq!(l.next(), None);
+    }
+
+    #[test]
+    fn test_string() {
+        let s = String::from("let xyz = \"abcdefghijklmnopqrstuvwxyz\";");
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
+        assert_eq!(l.next().unwrap(), Token::Identifier(String::from("xyz")));
+        assert_eq!(l.next().unwrap(), Token::EqualSign);
+        assert_eq!(l.next().unwrap(), Token::Quote);
+        assert_eq!(
+            l.next().unwrap(),
+            Token::Identifier(String::from("abcdefghijklmnopqrstuvwxyz"))
+        );
+        assert_eq!(l.next().unwrap(), Token::Quote);
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
         assert_eq!(l.next(), None);
     }
 }
