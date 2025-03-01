@@ -1,14 +1,13 @@
 use std::iter::Peekable;
 
-use crate::lexer::{Lexer, Token};
+use crate::{
+    lexer::{Lexer, Token},
+    parser_error::ParserError,
+};
 
 pub struct Parser<'a> {
     pub lexer: Peekable<Lexer<'a>>,
     pub statements: Vec<Statement>,
-}
-
-pub struct ParserError {
-    pub message: String,
 }
 
 #[derive(Debug)]
@@ -47,9 +46,9 @@ impl<'a> Parser<'a> {
             // Token::Keyword(Keyword::Let) => Fn
             // Token::Keyword(Keyword::Let) => LetStatement
             _ => {
-                return Err(ParserError {
-                    message: String::from("Program must begin with a statement"),
-                });
+                return Err(ParserError::InvalidSyntax(
+                    "Program must begin with a statement".to_string(),
+                ));
             }
         };
 
@@ -61,9 +60,9 @@ impl<'a> Parser<'a> {
     fn parse_let_statement(&mut self) -> Result<Statement, ParserError> {
         let token = match self.lexer.next() {
             None => {
-                return Err(ParserError {
-                    message: String::from("Invalid Let statement"),
-                });
+                return Err(ParserError::InvalidSyntax(
+                    "Invalid Let statement".to_string(),
+                ));
             }
             Some(i) => i,
         };
@@ -71,18 +70,18 @@ impl<'a> Parser<'a> {
         let identifier_name = match token {
             Token::Identifier(s) => s,
             _ => {
-                return Err(ParserError {
-                    message: String::from("Let must be followed by it's identifier"),
-                });
+                return Err(ParserError::MissingToken(
+                    "Identifier in let statement".to_string(),
+                ));
             }
         };
 
         match self.lexer.next() {
             Some(Token::EqualSign) => true,
             _ => {
-                return Err(ParserError {
-                    message: String::from("An equal sign is missing"),
-                });
+                return Err(ParserError::MissingToken(
+                    "Equal sign in let statement".to_string(),
+                ));
             }
         };
 
@@ -91,9 +90,9 @@ impl<'a> Parser<'a> {
             let token = match self.lexer.next() {
                 Some(i) => i,
                 None => {
-                    return Err(ParserError {
-                        message: String::from("Semicolon is missing"),
-                    });
+                    return Err(ParserError::MissingToken(
+                        "Semicolon at the end of let statement".to_string(),
+                    ));
                 }
             };
 
@@ -123,7 +122,7 @@ mod tests {
     fn parsing_basic_statement() -> Result<(), Box<dyn Error>> {
         let l = Lexer::new("let messi = 10;");
         let mut parser = Parser::new(l);
-        let _ = parser.parse_ast();
+        parser.parse_ast()?;
         if let Some(Statement::LetStatement(a, b)) = parser.statements.first() {
             assert_eq!(a, "messi");
             if let Expression::LiteralInteger(c) = b {
