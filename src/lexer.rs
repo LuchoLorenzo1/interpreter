@@ -31,8 +31,8 @@ pub struct Lexer<'a> {
     chars: Peekable<Chars<'a>>,
 }
 
-impl Lexer<'_> {
-    pub fn new<'a>(string: &'a String) -> Lexer<'a> {
+impl<'a> Lexer<'a> {
+    pub fn new(string: &'a str) -> Self {
         return Lexer {
             chars: string.chars().peekable(),
         };
