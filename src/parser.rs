@@ -21,6 +21,7 @@ pub enum Statement {
 pub enum Expression {
     LiteralInteger(u32),
     Identifier(String),
+    MinusPrefix(Box<Expression>),
     Addition,
 }
 
@@ -104,7 +105,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let expression: Expression = parse_expression(expressions)?;
+        let expression: Expression = parse_expression(&expressions)?;
 
         let st = Statement::LetStatement(identifier_name, expression);
 
@@ -112,11 +113,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub fn parse_expression(tokens: Vec<Token>) -> Result<Expression, ParserError> {
-    for i in tokens.iter() {
-        println!("{i:?}");
-    }
-
+pub fn parse_expression(tokens: &[Token]) -> Result<Expression, ParserError> {
     if tokens.len() < 1 {
         return Err(ParserError::InvalidSyntax("Empty expression".to_string()));
     }
@@ -124,6 +121,10 @@ pub fn parse_expression(tokens: Vec<Token>) -> Result<Expression, ParserError> {
     let expression = match tokens.iter().next() {
         Some(Token::Integer(i)) => Expression::LiteralInteger(*i),
         Some(Token::Identifier(a)) => Expression::Identifier(a.to_string()),
+        Some(Token::MinusSign) => {
+            let xp: Expression = parse_expression(&tokens[1..])?;
+            Expression::MinusPrefix(Box::new(xp))
+        }
         _ => return Err(ParserError::InvalidSyntax("Empty expression".to_string())),
     };
 
