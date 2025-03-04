@@ -13,14 +13,14 @@ pub struct Parser<'a> {
 #[derive(Debug)]
 pub enum Statement {
     LetStatement(String, Expression),
-    FunctionStatement,
     ReturnStatement,
+    ExpressionStatement,
 }
 
 #[derive(Debug)]
 pub enum Expression {
     LiteralInteger(u32),
-    LiteralString,
+    Identifier(String),
     Addition,
 }
 
@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
             }
         };
 
-        let mut expressions = vec![];
+        let mut expressions: Vec<Token> = vec![];
         loop {
             let token = match self.lexer.next() {
                 Some(i) => i,
@@ -104,12 +104,30 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // parse_expression(expressions)
+        let expression: Expression = parse_expression(expressions)?;
 
-        let st = Statement::LetStatement(identifier_name, Expression::LiteralInteger(10));
+        let st = Statement::LetStatement(identifier_name, expression);
 
         Ok(st)
     }
+}
+
+pub fn parse_expression(tokens: Vec<Token>) -> Result<Expression, ParserError> {
+    for i in tokens.iter() {
+        println!("{i:?}");
+    }
+
+    if tokens.len() < 1 {
+        return Err(ParserError::InvalidSyntax("Empty expression".to_string()));
+    }
+
+    let expression = match tokens.iter().next() {
+        Some(Token::Integer(i)) => Expression::LiteralInteger(*i),
+        Some(Token::Identifier(a)) => Expression::Identifier(a.to_string()),
+        _ => return Err(ParserError::InvalidSyntax("Empty expression".to_string())),
+    };
+
+    Ok(expression)
 }
 
 #[cfg(test)]

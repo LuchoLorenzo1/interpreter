@@ -13,7 +13,7 @@ pub enum Keyword {
 pub enum Token {
     Identifier(String),
     Keyword(Keyword),
-    Integer(usize),
+    Integer(u32),
     Illegal(char),
     EqualSign,
     PlusSign,
@@ -84,7 +84,7 @@ impl Iterator for Lexer<'_> {
                         _ => break,
                     }
                 }
-                Token::Integer(usize::from_str_radix(&number, 10).unwrap_or(0))
+                Token::Integer(u32::from_str_radix(&number, 10).unwrap_or(0))
             }
             'a'..='z' | 'A'..='Z' => {
                 let mut word: String = String::from(char);
