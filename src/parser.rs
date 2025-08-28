@@ -10,19 +10,37 @@ pub struct Parser<'a> {
     pub statements: Vec<Statement>,
 }
 
+/// Backus-Naur Form (BNF) for the grammar:
+// expression     -> equality ;
+// equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
+// comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+// term           -> factor ( ( "-" | "+" ) factor )* ;
+// factor         -> unary ( ( "/" | "*" ) unary )* ;
+// unary          -> ( "!" | "-" ) unary | primary ;
+// primary        -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+
+#[derive(Debug)]
+pub enum Operator {
+    EqualSign,
+    Addition,
+}
+
 #[derive(Debug)]
 pub enum Statement {
-    LetStatement(String, Expression),
-    ReturnStatement,
-    ExpressionStatement,
+    // LetStatement(String, Expression),
+    // ReturnStatement,
+    Expression(Expression),
 }
 
 #[derive(Debug)]
 pub enum Expression {
-    LiteralInteger(u32),
-    Identifier(String),
-    MinusPrefix(Box<Expression>),
-    Addition,
+    Binary(Box<Expression>, Operator, Box<Expression>),
+    Primary(Primary),
+}
+
+#[derive(Debug)]
+pub enum Primary {
+    Integer(u32),
 }
 
 impl<'a> Parser<'a> {
@@ -34,101 +52,41 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_ast(&mut self) -> Result<(), ParserError> {
-        use crate::lexer::Keyword;
-        use crate::lexer::Token;
-
-        let token = match self.lexer.next() {
-            None => return Ok(()),
-            Some(t) => t,
-        };
-
-        let st = match token {
-            Token::Keyword(Keyword::Let) => self.parse_let_statement()?,
-            // Token::Keyword(Keyword::Let) => Fn
-            // Token::Keyword(Keyword::Let) => LetStatement
-            _ => {
-                return Err(ParserError::InvalidSyntax(
-                    "Program must begin with a statement".to_string(),
-                ));
-            }
-        };
-
-        self.statements.push(st);
-
+        if let None = self.lexer.peek() {
+            return Ok(());
+        }
+        let expr = self.expression()?;
+        self.statements.push(Statement::Expression(expr));
         Ok(())
     }
 
-    fn parse_let_statement(&mut self) -> Result<Statement, ParserError> {
-        let token = match self.lexer.next() {
-            None => {
-                return Err(ParserError::InvalidSyntax(
-                    "Invalid Let statement".to_string(),
-                ));
-            }
-            Some(i) => i,
-        };
-
-        let identifier_name = match token {
-            Token::Identifier(s) => s,
-            _ => {
-                return Err(ParserError::MissingToken(
-                    "Identifier in let statement".to_string(),
-                ));
-            }
-        };
-
-        match self.lexer.next() {
-            Some(Token::EqualSign) => true,
-            _ => {
-                return Err(ParserError::MissingToken(
-                    "Equal sign in let statement".to_string(),
-                ));
-            }
-        };
-
-        let mut expressions: Vec<Token> = vec![];
-        loop {
-            let token = match self.lexer.next() {
-                Some(i) => i,
-                None => {
-                    return Err(ParserError::MissingToken(
-                        "Semicolon at the end of let statement".to_string(),
-                    ));
-                }
-            };
-
-            match token {
-                Token::Semicolon => break,
-                _ => {
-                    expressions.push(token);
-                }
-            }
-        }
-
-        let expression: Expression = parse_expression(&expressions)?;
-
-        let st = Statement::LetStatement(identifier_name, expression);
-
-        Ok(st)
-    }
-}
-
-pub fn parse_expression(tokens: &[Token]) -> Result<Expression, ParserError> {
-    if tokens.len() < 1 {
-        return Err(ParserError::InvalidSyntax("Empty expression".to_string()));
+    fn expression(&mut self) -> Result<Expression, ParserError> {
+        self.comparison()
     }
 
-    let expression = match tokens.iter().next() {
-        Some(Token::Integer(i)) => Expression::LiteralInteger(*i),
-        Some(Token::Identifier(a)) => Expression::Identifier(a.to_string()),
-        Some(Token::MinusSign) => {
-            let xp: Expression = parse_expression(&tokens[1..])?;
-            Expression::MinusPrefix(Box::new(xp))
-        }
-        _ => return Err(ParserError::InvalidSyntax("Empty expression".to_string())),
-    };
+    fn comparison(&mut self) -> Result<Expression, ParserError> {
+        Ok(Expression::Binary(
+            Box::new(Expression::Primary(self.primary()?)),
+            Operator::Addition,
+            Box::new(Expression::Primary(Primary::Integer(5))),
+        ))
+    }
 
-    Ok(expression)
+    fn primary(&mut self) -> Result<Primary, ParserError> {
+        if let None = self.lexer.peek() {
+            return Err(ParserError::InvalidSyntax(String::from("Invalid syntax")));
+        }
+
+        let p = match self.lexer.next().unwrap() {
+            Token::Integer(u) => Primary::Integer(u),
+            t => Err(ParserError::InvalidSyntax(format!(
+                "Unexpected token: {:?}",
+                t
+            )))?,
+        };
+
+        Ok(p)
+    }
 }
 
 #[cfg(test)]
@@ -139,17 +97,20 @@ mod tests {
 
     #[test]
     fn parsing_basic_statement() -> Result<(), Box<dyn Error>> {
-        let l = Lexer::new("let messi = 10;");
+        let l = Lexer::new("1");
         let mut parser = Parser::new(l);
         parser.parse_ast()?;
-        if let Some(Statement::LetStatement(a, b)) = parser.statements.first() {
-            assert_eq!(a, "messi");
-            if let Expression::LiteralInteger(c) = b {
-                assert_eq!(*c, 10);
-            }
-        } else {
-            assert!(false);
-        }
+
+        assert_eq!(parser.statements.len(), 1);
+        println!("{:#?}", parser.statements);
+
+        // assert!(matches!(
+        //     parser.statements[0],
+        //     Statement::Expression(Expression::Primary(Primary::Integer(1)))
+        // ));
+
+        todo!();
+
         Ok(())
     }
 }
