@@ -205,6 +205,20 @@ impl<'a> Parser<'a> {
             Some(Token::NotSign | Token::MinusSign) => {
                 return self.expression();
             }
+            Some(Token::OpenParenthesis) => {
+                self.lexer.next();
+                let right_expr = self.expression()?;
+
+                let next_token = self.lexer.next();
+                if let Some(Token::CloseParenthesis) = next_token {
+                    return Ok(right_expr);
+                } else {
+                    return Err(ParserError::InvalidSyntax(format!(
+                        "Expected closing parenthesis, found: {:?}",
+                        next_token
+                    )));
+                }
+            }
             Some(a) => {
                 println!("Primary token: {:?}", a);
             }
@@ -407,5 +421,60 @@ mod tests {
         ];
 
         match_statements(expression, expected_results)
+    }
+
+    #[test]
+    fn parsing_parens_expressions() -> Result<(), Box<dyn Error>> {
+        let expression = vec![
+            "(1 + 1) * 3",
+            "1 == (1 + 1 * (5/2))",
+            "(1 + 2) * (3 + 4) - -(5 / (6 - 1))",
+        ];
+
+        let expected_results = vec![
+            Statement::Expression(Expression::Binary(
+                bin(int(1), Operator::Addition, int(1)),
+                Operator::Multiplication,
+                int(3),
+            )),
+            Statement::Expression(Expression::Binary(
+                int(1),
+                Operator::Equality,
+                bin(
+                    int(1),
+                    Operator::Addition,
+                    bin(
+                        int(1),
+                        Operator::Multiplication,
+                        bin(int(5), Operator::Division, int(2)),
+                    ),
+                ),
+            )),
+            Statement::Expression(Expression::Binary(
+                bin(
+                    bin(int(1), Operator::Addition, int(2)),
+                    Operator::Multiplication,
+                    bin(int(3), Operator::Addition, int(4)),
+                ),
+                Operator::Subtraction,
+                Box::new(Expression::Unary(
+                    Operator::Negation,
+                    bin(
+                        int(5),
+                        Operator::Division,
+                        bin(int(6), Operator::Subtraction, int(1)),
+                    ),
+                )),
+            )),
+        ];
+
+        match_statements(expression, expected_results)?;
+
+        let l = Lexer::new("(()");
+        let mut parser = Parser::new(l);
+        let err = parser.parse_ast();
+        assert!(err.is_err());
+
+        Ok(())
     }
 }
