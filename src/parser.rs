@@ -19,26 +19,27 @@ pub struct Parser<'a> {
 // unary          -> ( "!" | "-" ) unary | primary ;
 // primary        -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
-#[derive(Debug)]
-pub enum Operator {
-    EqualSign,
-    Addition,
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     // LetStatement(String, Expression),
     // ReturnStatement,
     Expression(Expression),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     Binary(Box<Expression>, Operator, Box<Expression>),
     Primary(Primary),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+pub enum Operator {
+    Equality,
+    Inequality,
+    Addition,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Primary {
     Integer(u32),
 }
@@ -65,14 +66,29 @@ impl<'a> Parser<'a> {
     }
 
     fn comparison(&mut self) -> Result<Expression, ParserError> {
-        Ok(Expression::Binary(
-            Box::new(Expression::Primary(self.primary()?)),
-            Operator::Addition,
-            Box::new(Expression::Primary(Primary::Integer(5))),
-        ))
+        let primary_left = self.primary()?;
+
+        let op = self.lexer.peek().and_then(|tok| match tok {
+            Token::EqualSign => Some(Operator::Equality),
+            // Token::Inequality => Some(Operator::Inequality),
+            _ => None,
+        });
+
+        if let Some(operator) = op {
+            self.lexer.next();
+            let primary_right = self.primary()?;
+
+            Ok(Expression::Binary(
+                Box::new(primary_left),
+                operator,
+                Box::new(primary_right),
+            ))
+        } else {
+            Ok(primary_left)
+        }
     }
 
-    fn primary(&mut self) -> Result<Primary, ParserError> {
+    fn primary(&mut self) -> Result<Expression, ParserError> {
         if let None = self.lexer.peek() {
             return Err(ParserError::InvalidSyntax(String::from("Invalid syntax")));
         }
@@ -85,7 +101,7 @@ impl<'a> Parser<'a> {
             )))?,
         };
 
-        Ok(p)
+        Ok(Expression::Primary(p))
     }
 }
 
@@ -96,20 +112,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parsing_basic_statement() -> Result<(), Box<dyn Error>> {
-        let l = Lexer::new("1");
+    fn parsing_equality_statement() -> Result<(), Box<dyn Error>> {
+        // TODO: change = for == in lexer.
+        let l = Lexer::new("1 = 1");
         let mut parser = Parser::new(l);
         parser.parse_ast()?;
 
         assert_eq!(parser.statements.len(), 1);
         println!("{:#?}", parser.statements);
 
-        // assert!(matches!(
-        //     parser.statements[0],
-        //     Statement::Expression(Expression::Primary(Primary::Integer(1)))
-        // ));
-
-        todo!();
+        assert_eq!(
+            parser.statements[0],
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Equality,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+        );
 
         Ok(())
     }
