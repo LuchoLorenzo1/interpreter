@@ -27,6 +27,7 @@ pub enum Token {
     OpenBrace,
     CloseBrace,
     Quote,
+    NotSign,
 }
 
 pub struct Lexer<'a> {
@@ -60,6 +61,14 @@ impl Iterator for Lexer<'_> {
             '{' => Token::OpenBrace,
             '}' => Token::CloseBrace,
             '"' => Token::Quote,
+            '!' => {
+                if let Some('=') = self.chars.peek() {
+                    self.chars.next();
+                    Token::NotEqualSign
+                } else {
+                    Token::NotSign
+                }
+            }
             '=' => {
                 if let Some('=') = self.chars.peek() {
                     self.chars.next();
@@ -180,12 +189,12 @@ mod tests {
 
     #[test]
     fn test_illegal_chars() {
-        let s = String::from("1?2!3$");
+        let s = String::from("1?2%3$");
         let mut l = Lexer::new(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Illegal('?'));
         assert_eq!(l.next().unwrap(), Token::Integer(2));
-        assert_eq!(l.next().unwrap(), Token::Illegal('!'));
+        assert_eq!(l.next().unwrap(), Token::Illegal('%'));
         assert_eq!(l.next().unwrap(), Token::Integer(3));
         assert_eq!(l.next().unwrap(), Token::Illegal('$'));
         assert_eq!(l.next(), None);
@@ -216,6 +225,20 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next(), None);
+    }
+
+    #[test]
+    fn test_unequal() {
+        let s = String::from("1 != 1; !===!=");
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::NotEqualSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NotEqualSign);
+        assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
+        assert_eq!(l.next().unwrap(), Token::NotEqualSign);
         assert_eq!(l.next(), None);
     }
 }
