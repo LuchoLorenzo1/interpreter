@@ -29,6 +29,7 @@ pub enum Statement {
 #[derive(Debug, PartialEq)]
 pub enum Expression {
     Binary(Box<Expression>, Operator, Box<Expression>),
+    Unary(Operator, Box<Expression>),
     Primary(Primary),
 }
 
@@ -37,6 +38,8 @@ pub enum Operator {
     Equality,
     Inequality,
     Addition,
+    LogicalNot,
+    Negation,
 }
 
 #[derive(Debug, PartialEq)]
@@ -62,11 +65,11 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expression, ParserError> {
-        self.comparison()
+        self.equality()
     }
 
-    fn comparison(&mut self) -> Result<Expression, ParserError> {
-        let primary_left = self.primary()?;
+    fn equality(&mut self) -> Result<Expression, ParserError> {
+        let comparison_left = self.comparison()?;
 
         let op = self.lexer.peek().and_then(|tok| match tok {
             Token::DoubleEqualSign => Some(Operator::Equality),
@@ -76,15 +79,42 @@ impl<'a> Parser<'a> {
 
         if let Some(operator) = op {
             self.lexer.next();
-            let primary_right = self.primary()?;
+            let comparison_right = self.comparison()?;
 
             Ok(Expression::Binary(
-                Box::new(primary_left),
+                Box::new(comparison_left),
                 operator,
-                Box::new(primary_right),
+                Box::new(comparison_right),
             ))
         } else {
-            Ok(primary_left)
+            Ok(comparison_left)
+        }
+    }
+
+    fn comparison(&mut self) -> Result<Expression, ParserError> {
+        self.term()
+    }
+
+    fn term(&mut self) -> Result<Expression, ParserError> {
+        self.factor()
+    }
+
+    fn factor(&mut self) -> Result<Expression, ParserError> {
+        self.unary()
+    }
+
+    fn unary(&mut self) -> Result<Expression, ParserError> {
+        let op = self.lexer.peek().and_then(|tok| match tok {
+            Token::NotSign => Some(Operator::LogicalNot),
+            Token::MinusSign => Some(Operator::Negation),
+            _ => None,
+        });
+
+        if let Some(operator) = op {
+            self.lexer.next();
+            Ok(Expression::Unary(operator, Box::new(self.primary()?)))
+        } else {
+            self.primary()
         }
     }
 
@@ -142,6 +172,33 @@ mod tests {
                 Box::new(Expression::Primary(Primary::Integer(1))),
             )),
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parsing_unary_expression() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["!1", "-1"];
+        let expected_results = vec![
+            Statement::Expression(Expression::Unary(
+                Operator::LogicalNot,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Unary(
+                Operator::Negation,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+        ];
+
+        for (i, expr) in expression.iter().enumerate() {
+            let l = Lexer::new(expr);
+            let mut parser = Parser::new(l);
+            parser.parse_ast()?;
+
+            assert_eq!(parser.statements.len(), 1);
+            println!("{:#?}", parser.statements);
+            assert_eq!(parser.statements[0], expected_results[i]);
+        }
 
         Ok(())
     }
