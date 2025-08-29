@@ -16,6 +16,8 @@ pub enum Token {
     Integer(u32),
     Illegal(char),
     EqualSign,
+    DoubleEqualSign,
+    NotEqualSign,
     PlusSign,
     MinusSign,
     Comma,
@@ -50,7 +52,6 @@ impl Iterator for Lexer<'_> {
 
         Some(match char {
             ',' => Token::Comma,
-            '=' => Token::EqualSign,
             ';' => Token::Semicolon,
             '+' => Token::PlusSign,
             '-' => Token::MinusSign,
@@ -59,6 +60,14 @@ impl Iterator for Lexer<'_> {
             '{' => Token::OpenBrace,
             '}' => Token::CloseBrace,
             '"' => Token::Quote,
+            '=' => {
+                if let Some('=') = self.chars.peek() {
+                    self.chars.next();
+                    Token::DoubleEqualSign
+                } else {
+                    Token::EqualSign
+                }
+            }
             ' ' | '\t' => {
                 while let Some(i) = self.chars.peek() {
                     match i {
@@ -195,6 +204,17 @@ mod tests {
             Token::Identifier(String::from("abcdefghijklmnopqrstuvwxyz"))
         );
         assert_eq!(l.next().unwrap(), Token::Quote);
+        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next(), None);
+    }
+
+    #[test]
+    fn test_double_equals() {
+        let s = String::from("1 == 1;");
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Semicolon);
         assert_eq!(l.next(), None);
     }
