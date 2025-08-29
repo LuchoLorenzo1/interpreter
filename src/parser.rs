@@ -37,7 +37,13 @@ pub enum Expression {
 pub enum Operator {
     Equality,
     Inequality,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+
     Addition,
+
     LogicalNot,
     Negation,
 }
@@ -92,7 +98,28 @@ impl<'a> Parser<'a> {
     }
 
     fn comparison(&mut self) -> Result<Expression, ParserError> {
-        self.term()
+        let term = self.term()?;
+
+        let op = self.lexer.peek().and_then(|tok| match tok {
+            Token::GreaterThan => Some(Operator::GreaterThan),
+            Token::GreaterThanOrEqual => Some(Operator::GreaterThanOrEqual),
+            Token::LessThan => Some(Operator::LessThan),
+            Token::LessThanOrEqual => Some(Operator::LessThanOrEqual),
+            _ => None,
+        });
+
+        if let Some(operator) = op {
+            self.lexer.next();
+            let right_term = self.term()?;
+
+            Ok(Expression::Binary(
+                Box::new(term),
+                operator,
+                Box::new(right_term),
+            ))
+        } else {
+            Ok(term)
+        }
     }
 
     fn term(&mut self) -> Result<Expression, ParserError> {
@@ -145,39 +172,40 @@ mod tests {
 
     use super::*;
 
+    fn match_statements(
+        expressions: Vec<&str>,
+        expected_results: Vec<Statement>,
+    ) -> Result<(), Box<dyn Error>> {
+        for (i, expr) in expressions.iter().enumerate() {
+            let l = Lexer::new(expr);
+            let mut parser = Parser::new(l);
+            parser.parse_ast()?;
+
+            assert_eq!(parser.statements.len(), 1);
+            println!("{:#?}", parser.statements);
+            assert_eq!(parser.statements[0], expected_results[i]);
+        }
+
+        Ok(())
+    }
+
     #[test]
     fn parsing_equality_statement() -> Result<(), Box<dyn Error>> {
-        let l = Lexer::new("1 == 1");
-        let mut parser = Parser::new(l);
-        parser.parse_ast()?;
-
-        assert_eq!(parser.statements.len(), 1);
-        println!("{:#?}", parser.statements);
-        assert_eq!(
-            parser.statements[0],
+        let expression = vec!["1 == 1", "1 != 1"];
+        let expected_results = vec![
             Statement::Expression(Expression::Binary(
                 Box::new(Expression::Primary(Primary::Integer(1))),
                 Operator::Equality,
                 Box::new(Expression::Primary(Primary::Integer(1))),
             )),
-        );
-
-        let l = Lexer::new("1 != 1");
-        let mut parser = Parser::new(l);
-        parser.parse_ast()?;
-
-        assert_eq!(parser.statements.len(), 1);
-        println!("{:#?}", parser.statements);
-        assert_eq!(
-            parser.statements[0],
             Statement::Expression(Expression::Binary(
                 Box::new(Expression::Primary(Primary::Integer(1))),
                 Operator::Inequality,
                 Box::new(Expression::Primary(Primary::Integer(1))),
             )),
-        );
+        ];
 
-        Ok(())
+        match_statements(expression, expected_results)
     }
 
     #[test]
@@ -221,16 +249,35 @@ mod tests {
             )),
         ];
 
-        for (i, expr) in expression.iter().enumerate() {
-            let l = Lexer::new(expr);
-            let mut parser = Parser::new(l);
-            parser.parse_ast()?;
+        match_statements(expression, expected_results)
+    }
 
-            assert_eq!(parser.statements.len(), 1);
-            println!("{:#?}", parser.statements);
-            assert_eq!(parser.statements[0], expected_results[i]);
-        }
+    #[test]
+    fn parsing_basic_comparisons() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["1 > 1", "1 >= 1", "1 < 1", "1 <= 1"];
+        let expected_results = vec![
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::GreaterThan,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::GreaterThanOrEqual,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::LessThan,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::LessThanOrEqual,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+        ];
 
-        Ok(())
+        match_statements(expression, expected_results)
     }
 }

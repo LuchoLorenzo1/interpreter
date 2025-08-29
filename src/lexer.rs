@@ -18,6 +18,10 @@ pub enum Token {
     EqualSign,
     DoubleEqualSign,
     NotEqualSign,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
     PlusSign,
     MinusSign,
     Comma,
@@ -75,6 +79,22 @@ impl Iterator for Lexer<'_> {
                     Token::DoubleEqualSign
                 } else {
                     Token::EqualSign
+                }
+            }
+            '>' => {
+                if let Some('=') = self.chars.peek() {
+                    self.chars.next();
+                    Token::GreaterThanOrEqual
+                } else {
+                    Token::GreaterThan
+                }
+            }
+            '<' => {
+                if let Some('=') = self.chars.peek() {
+                    self.chars.next();
+                    Token::LessThanOrEqual
+                } else {
+                    Token::LessThan
                 }
             }
             ' ' | '\t' => {
