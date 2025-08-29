@@ -85,97 +85,103 @@ impl<'a> Parser<'a> {
     }
 
     fn equality(&mut self) -> Result<Expression, ParserError> {
-        let comparison_left = self.comparison()?;
+        let mut comparison_left = self.comparison()?;
 
-        let op = self.lexer.peek().and_then(|tok| match tok {
-            Token::DoubleEqualSign => Some(Operator::Equality),
-            Token::NotEqualSign => Some(Operator::Inequality),
-            _ => None,
-        });
+        while let Some(tok) = self.lexer.peek() {
+            let op = match tok {
+                Token::DoubleEqualSign => Some(Operator::Equality),
+                Token::NotEqualSign => Some(Operator::Inequality),
+                _ => break,
+            };
 
-        if let Some(operator) = op {
-            self.lexer.next();
-            let comparison_right = self.comparison()?;
+            if let Some(operator) = op {
+                self.lexer.next();
 
-            Ok(Expression::Binary(
-                Box::new(comparison_left),
-                operator,
-                Box::new(comparison_right),
-            ))
-        } else {
-            Ok(comparison_left)
+                let tmp = Expression::Binary(
+                    Box::new(comparison_left),
+                    operator,
+                    Box::new(self.comparison()?),
+                );
+
+                comparison_left = tmp;
+            }
         }
+
+        Ok(comparison_left)
     }
 
     fn comparison(&mut self) -> Result<Expression, ParserError> {
-        let term = self.term()?;
+        let mut term = self.term()?;
 
-        let op = self.lexer.peek().and_then(|tok| match tok {
-            Token::GreaterThan => Some(Operator::GreaterThan),
-            Token::GreaterThanOrEqual => Some(Operator::GreaterThanOrEqual),
-            Token::LessThan => Some(Operator::LessThan),
-            Token::LessThanOrEqual => Some(Operator::LessThanOrEqual),
-            _ => None,
-        });
+        while let Some(tok) = self.lexer.peek() {
+            let op = match tok {
+                Token::GreaterThan => Some(Operator::GreaterThan),
+                Token::GreaterThanOrEqual => Some(Operator::GreaterThanOrEqual),
+                Token::LessThan => Some(Operator::LessThan),
+                Token::LessThanOrEqual => Some(Operator::LessThanOrEqual),
+                _ => break,
+            };
 
-        if let Some(operator) = op {
-            self.lexer.next();
-            let right_term = self.term()?;
+            if let Some(operator) = op {
+                self.lexer.next();
+                let right_term = self.term()?;
 
-            Ok(Expression::Binary(
-                Box::new(term),
-                operator,
-                Box::new(right_term),
-            ))
-        } else {
-            Ok(term)
+                let tmp = Expression::Binary(Box::new(term), operator, Box::new(right_term));
+                term = tmp;
+            };
         }
+
+        Ok(term)
     }
 
     fn term(&mut self) -> Result<Expression, ParserError> {
-        let factor = self.factor()?;
+        let mut factor = self.factor()?;
 
-        let op = self.lexer.peek().and_then(|tok| match tok {
-            Token::PlusSign => Some(Operator::Addition),
-            Token::MinusSign => Some(Operator::Subtraction),
-            _ => None,
-        });
+        while let Some(tok) = self.lexer.peek() {
+            let op = match tok {
+                Token::PlusSign => Some(Operator::Addition),
+                Token::MinusSign => Some(Operator::Subtraction),
+                _ => break,
+            };
 
-        if let Some(operator) = op {
-            self.lexer.next();
-            let right_factor = self.factor()?;
+            if let Some(operator) = op {
+                self.lexer.next();
+                let tmp = Ok(Expression::Binary(
+                    Box::new(factor),
+                    operator,
+                    Box::new(self.factor()?),
+                ));
 
-            Ok(Expression::Binary(
-                Box::new(factor),
-                operator,
-                Box::new(right_factor),
-            ))
-        } else {
-            Ok(factor)
+                factor = tmp?;
+            }
         }
+
+        Ok(factor)
     }
 
     fn factor(&mut self) -> Result<Expression, ParserError> {
-        let unary = self.unary()?;
+        let mut unary = self.unary()?;
 
-        let op = self.lexer.peek().and_then(|tok| match tok {
-            Token::Asterisk => Some(Operator::Multiplication),
-            Token::Slash => Some(Operator::Division),
-            _ => None,
-        });
+        while let Some(tok) = self.lexer.peek() {
+            let op = match tok {
+                Token::Asterisk => Some(Operator::Multiplication),
+                Token::Slash => Some(Operator::Division),
+                _ => break,
+            };
 
-        if let Some(operator) = op {
-            self.lexer.next();
-            let right_unary = self.unary()?;
+            if let Some(operator) = op {
+                self.lexer.next();
+                let tmp = Ok(Expression::Binary(
+                    Box::new(unary),
+                    operator,
+                    Box::new(self.unary()?),
+                ));
 
-            Ok(Expression::Binary(
-                Box::new(unary),
-                operator,
-                Box::new(right_unary),
-            ))
-        } else {
-            Ok(unary)
+                unary = tmp?;
+            }
         }
+
+        Ok(unary)
     }
 
     fn unary(&mut self) -> Result<Expression, ParserError> {
@@ -222,6 +228,14 @@ mod tests {
 
     use super::*;
 
+    fn int(i: u32) -> Box<Expression> {
+        Box::new(Expression::Primary(Primary::Integer(i)))
+    }
+
+    fn bin(a: Box<Expression>, op: Operator, b: Box<Expression>) -> Box<Expression> {
+        Box::new(Expression::Binary(a, op, b))
+    }
+
     fn match_statements(
         expressions: Vec<&str>,
         expected_results: Vec<Statement>,
@@ -243,16 +257,8 @@ mod tests {
     fn parsing_equality_statement() -> Result<(), Box<dyn Error>> {
         let expression = vec!["1 == 1", "1 != 1"];
         let expected_results = vec![
-            Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::Equality,
-                Box::new(Expression::Primary(Primary::Integer(1))),
-            )),
-            Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::Inequality,
-                Box::new(Expression::Primary(Primary::Integer(1))),
-            )),
+            Statement::Expression(Expression::Binary(int(1), Operator::Equality, int(1))),
+            Statement::Expression(Expression::Binary(int(1), Operator::Inequality, int(1))),
         ];
 
         match_statements(expression, expected_results)
@@ -262,27 +268,15 @@ mod tests {
     fn parsing_unary_expression() -> Result<(), Box<dyn Error>> {
         let expression = vec!["!1", "-1", "!!1", "--1", "!-!-4"];
         let expected_results = vec![
+            Statement::Expression(Expression::Unary(Operator::LogicalNot, int(1))),
+            Statement::Expression(Expression::Unary(Operator::Negation, int(1))),
             Statement::Expression(Expression::Unary(
                 Operator::LogicalNot,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                Box::new(Expression::Unary(Operator::LogicalNot, int(1))),
             )),
             Statement::Expression(Expression::Unary(
                 Operator::Negation,
-                Box::new(Expression::Primary(Primary::Integer(1))),
-            )),
-            Statement::Expression(Expression::Unary(
-                Operator::LogicalNot,
-                Box::new(Expression::Unary(
-                    Operator::LogicalNot,
-                    Box::new(Expression::Primary(Primary::Integer(1))),
-                )),
-            )),
-            Statement::Expression(Expression::Unary(
-                Operator::Negation,
-                Box::new(Expression::Unary(
-                    Operator::Negation,
-                    Box::new(Expression::Primary(Primary::Integer(1))),
-                )),
+                Box::new(Expression::Unary(Operator::Negation, int(1))),
             )),
             Statement::Expression(Expression::Unary(
                 Operator::LogicalNot,
@@ -290,10 +284,7 @@ mod tests {
                     Operator::Negation,
                     Box::new(Expression::Unary(
                         Operator::LogicalNot,
-                        Box::new(Expression::Unary(
-                            Operator::Negation,
-                            Box::new(Expression::Primary(Primary::Integer(4))),
-                        )),
+                        Box::new(Expression::Unary(Operator::Negation, int(4))),
                     )),
                 )),
             )),
@@ -306,25 +297,17 @@ mod tests {
     fn parsing_basic_comparisons() -> Result<(), Box<dyn Error>> {
         let expression = vec!["1 > 1", "1 >= 1", "1 < 1", "1 <= 1"];
         let expected_results = vec![
+            Statement::Expression(Expression::Binary(int(1), Operator::GreaterThan, int(1))),
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::GreaterThan,
-                Box::new(Expression::Primary(Primary::Integer(1))),
-            )),
-            Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(1),
                 Operator::GreaterThanOrEqual,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(1),
             )),
+            Statement::Expression(Expression::Binary(int(1), Operator::LessThan, int(1))),
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::LessThan,
-                Box::new(Expression::Primary(Primary::Integer(1))),
-            )),
-            Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(1),
                 Operator::LessThanOrEqual,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(1),
             )),
         ];
 
@@ -335,25 +318,91 @@ mod tests {
     fn parsing_basic_factor_and_terms() -> Result<(), Box<dyn Error>> {
         let expression = vec!["1 + 1", "1 - 1", "1 * 1", "1 / 1"];
         let expected_results = vec![
+            Statement::Expression(Expression::Binary(int(1), Operator::Addition, int(1))),
+            Statement::Expression(Expression::Binary(int(1), Operator::Subtraction, int(1))),
+            Statement::Expression(Expression::Binary(int(1), Operator::Multiplication, int(1))),
+            Statement::Expression(Expression::Binary(int(1), Operator::Division, int(1))),
+        ];
+
+        match_statements(expression, expected_results)
+    }
+
+    #[test]
+    fn parsing_concatenating_expressions() -> Result<(), Box<dyn Error>> {
+        let expression = vec![
+            "1 == 1 == 1",
+            "1 != 1 == 1",
+            "1 + 1 + 5",
+            "1-2+3-4+5-6+7-8",
+            "!1 + !1 - 1 == 5+1",
+            "5*5/5 >= 1 <= 5+5",
+        ];
+        let expected_results = vec![
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                bin(int(1), Operator::Equality, int(1)),
+                Operator::Equality,
+                int(1),
+            )),
+            Statement::Expression(Expression::Binary(
+                bin(int(1), Operator::Inequality, int(1)),
+                Operator::Equality,
+                int(1),
+            )),
+            Statement::Expression(Expression::Binary(
+                bin(int(1), Operator::Addition, int(1)),
                 Operator::Addition,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(5),
             )),
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                bin(
+                    bin(
+                        bin(
+                            bin(
+                                bin(
+                                    bin(int(1), Operator::Subtraction, int(2)),
+                                    Operator::Addition,
+                                    int(3),
+                                ),
+                                Operator::Subtraction,
+                                int(4),
+                            ),
+                            Operator::Addition,
+                            int(5),
+                        ),
+                        Operator::Subtraction,
+                        int(6),
+                    ),
+                    Operator::Addition,
+                    int(7),
+                ),
                 Operator::Subtraction,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                int(8),
             )),
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::Multiplication,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                bin(
+                    bin(
+                        Box::new(Expression::Unary(Operator::LogicalNot, int(1))),
+                        Operator::Addition,
+                        Box::new(Expression::Unary(Operator::LogicalNot, int(1))),
+                    ),
+                    Operator::Subtraction,
+                    int(1),
+                ),
+                Operator::Equality,
+                bin(int(5), Operator::Addition, int(1)),
             )),
             Statement::Expression(Expression::Binary(
-                Box::new(Expression::Primary(Primary::Integer(1))),
-                Operator::Division,
-                Box::new(Expression::Primary(Primary::Integer(1))),
+                bin(
+                    bin(
+                        bin(int(5), Operator::Multiplication, int(5)),
+                        Operator::Division,
+                        int(5),
+                    ),
+                    Operator::GreaterThanOrEqual,
+                    int(1),
+                ),
+                Operator::LessThanOrEqual,
+                bin(int(5), Operator::Addition, int(5)),
             )),
         ];
 
