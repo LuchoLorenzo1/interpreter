@@ -69,8 +69,8 @@ impl<'a> Parser<'a> {
         let primary_left = self.primary()?;
 
         let op = self.lexer.peek().and_then(|tok| match tok {
-            Token::EqualSign => Some(Operator::Equality),
-            // Token::Inequality => Some(Operator::Inequality),
+            Token::DoubleEqualSign => Some(Operator::Equality),
+            Token::NotEqualSign => Some(Operator::Inequality),
             _ => None,
         });
 
@@ -113,19 +113,32 @@ mod tests {
 
     #[test]
     fn parsing_equality_statement() -> Result<(), Box<dyn Error>> {
-        // TODO: change = for == in lexer.
-        let l = Lexer::new("1 = 1");
+        let l = Lexer::new("1 == 1");
         let mut parser = Parser::new(l);
         parser.parse_ast()?;
 
         assert_eq!(parser.statements.len(), 1);
         println!("{:#?}", parser.statements);
-
         assert_eq!(
             parser.statements[0],
             Statement::Expression(Expression::Binary(
                 Box::new(Expression::Primary(Primary::Integer(1))),
                 Operator::Equality,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+        );
+
+        let l = Lexer::new("1 != 1");
+        let mut parser = Parser::new(l);
+        parser.parse_ast()?;
+
+        assert_eq!(parser.statements.len(), 1);
+        println!("{:#?}", parser.statements);
+        assert_eq!(
+            parser.statements[0],
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Inequality,
                 Box::new(Expression::Primary(Primary::Integer(1))),
             )),
         );
