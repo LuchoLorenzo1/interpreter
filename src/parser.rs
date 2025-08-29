@@ -35,15 +35,25 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq)]
 pub enum Operator {
+    /// Operators for Equality
     Equality,
     Inequality,
+
+    /// Operators for Comparison
     GreaterThan,
     LessThan,
     GreaterThanOrEqual,
     LessThanOrEqual,
 
+    /// Operators for Term
     Addition,
+    Subtraction,
 
+    /// Operators for Factor
+    Multiplication,
+    Division,
+
+    /// Operators for Unary
     LogicalNot,
     Negation,
 }
@@ -123,11 +133,49 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> Result<Expression, ParserError> {
-        self.factor()
+        let factor = self.factor()?;
+
+        let op = self.lexer.peek().and_then(|tok| match tok {
+            Token::PlusSign => Some(Operator::Addition),
+            Token::MinusSign => Some(Operator::Subtraction),
+            _ => None,
+        });
+
+        if let Some(operator) = op {
+            self.lexer.next();
+            let right_factor = self.factor()?;
+
+            Ok(Expression::Binary(
+                Box::new(factor),
+                operator,
+                Box::new(right_factor),
+            ))
+        } else {
+            Ok(factor)
+        }
     }
 
     fn factor(&mut self) -> Result<Expression, ParserError> {
-        self.unary()
+        let unary = self.unary()?;
+
+        let op = self.lexer.peek().and_then(|tok| match tok {
+            Token::Asterisk => Some(Operator::Multiplication),
+            Token::Slash => Some(Operator::Division),
+            _ => None,
+        });
+
+        if let Some(operator) = op {
+            self.lexer.next();
+            let right_unary = self.unary()?;
+
+            Ok(Expression::Binary(
+                Box::new(unary),
+                operator,
+                Box::new(right_unary),
+            ))
+        } else {
+            Ok(unary)
+        }
     }
 
     fn unary(&mut self) -> Result<Expression, ParserError> {
@@ -151,7 +199,9 @@ impl<'a> Parser<'a> {
             Some(Token::NotSign | Token::MinusSign) => {
                 return self.expression();
             }
-            Some(_) => {}
+            Some(a) => {
+                println!("Primary token: {:?}", a);
+            }
         };
 
         let p = match self.lexer.next().unwrap() {
@@ -274,6 +324,35 @@ mod tests {
             Statement::Expression(Expression::Binary(
                 Box::new(Expression::Primary(Primary::Integer(1))),
                 Operator::LessThanOrEqual,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+        ];
+
+        match_statements(expression, expected_results)
+    }
+
+    #[test]
+    fn parsing_basic_factor_and_terms() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["1 + 1", "1 - 1", "1 * 1", "1 / 1"];
+        let expected_results = vec![
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Addition,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Subtraction,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Multiplication,
+                Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Integer(1))),
+                Operator::Division,
                 Box::new(Expression::Primary(Primary::Integer(1))),
             )),
         ];

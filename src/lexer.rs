@@ -24,6 +24,8 @@ pub enum Token {
     LessThanOrEqual,
     PlusSign,
     MinusSign,
+    Asterisk,
+    Slash,
     Comma,
     Semicolon,
     OpenParenthesis,
@@ -65,6 +67,8 @@ impl Iterator for Lexer<'_> {
             '{' => Token::OpenBrace,
             '}' => Token::CloseBrace,
             '"' => Token::Quote,
+            '*' => Token::Asterisk,
+            '/' => Token::Slash,
             '!' => {
                 if let Some('=') = self.chars.peek() {
                     self.chars.next();
