@@ -119,19 +119,23 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> Result<Expression, ParserError> {
-        if let None = self.lexer.peek() {
-            return Err(ParserError::InvalidSyntax(String::from("Invalid syntax")));
-        }
+        match self.lexer.peek() {
+            None => return Err(ParserError::InvalidSyntax("Invalid syntax".into()))?,
+            Some(Token::NotSign | Token::MinusSign) => {
+                return self.expression();
+            }
+            Some(_) => {}
+        };
 
         let p = match self.lexer.next().unwrap() {
-            Token::Integer(u) => Primary::Integer(u),
+            Token::Integer(u) => Expression::Primary(Primary::Integer(u)),
             t => Err(ParserError::InvalidSyntax(format!(
                 "Unexpected token: {:?}",
                 t
             )))?,
         };
 
-        Ok(Expression::Primary(p))
+        Ok(p)
     }
 }
 
@@ -178,7 +182,7 @@ mod tests {
 
     #[test]
     fn parsing_unary_expression() -> Result<(), Box<dyn Error>> {
-        let expression = vec!["!1", "-1"];
+        let expression = vec!["!1", "-1", "!!1", "--1", "!-!-4"];
         let expected_results = vec![
             Statement::Expression(Expression::Unary(
                 Operator::LogicalNot,
@@ -187,6 +191,33 @@ mod tests {
             Statement::Expression(Expression::Unary(
                 Operator::Negation,
                 Box::new(Expression::Primary(Primary::Integer(1))),
+            )),
+            Statement::Expression(Expression::Unary(
+                Operator::LogicalNot,
+                Box::new(Expression::Unary(
+                    Operator::LogicalNot,
+                    Box::new(Expression::Primary(Primary::Integer(1))),
+                )),
+            )),
+            Statement::Expression(Expression::Unary(
+                Operator::Negation,
+                Box::new(Expression::Unary(
+                    Operator::Negation,
+                    Box::new(Expression::Primary(Primary::Integer(1))),
+                )),
+            )),
+            Statement::Expression(Expression::Unary(
+                Operator::LogicalNot,
+                Box::new(Expression::Unary(
+                    Operator::Negation,
+                    Box::new(Expression::Unary(
+                        Operator::LogicalNot,
+                        Box::new(Expression::Unary(
+                            Operator::Negation,
+                            Box::new(Expression::Primary(Primary::Integer(4))),
+                        )),
+                    )),
+                )),
             )),
         ];
 
