@@ -7,6 +7,9 @@ pub enum Keyword {
     Let,
     Fn,
     Return,
+    False,
+    True,
+    Null,
 }
 
 #[derive(PartialEq, Debug)]
@@ -71,7 +74,7 @@ impl Iterator for Lexer<'_> {
                 let mut word: String = String::new();
                 while let Some(i) = self.chars.peek() {
                     match i {
-                        'a'..='z' | 'A'..='Z' | '0'..='9' => {
+                        'a'..='z' | 'A'..='Z' | '0'..='9' | ' ' => {
                             word.push(*i);
                             self.chars.next();
                         }
@@ -161,6 +164,9 @@ impl Iterator for Lexer<'_> {
                     "let" => Token::Keyword(Keyword::Let),
                     "return" => Token::Keyword(Keyword::Return),
                     "fn" => Token::Keyword(Keyword::Fn),
+                    "false" => Token::Keyword(Keyword::False),
+                    "true" => Token::Keyword(Keyword::True),
+                    "null" => Token::Keyword(Keyword::Null),
                     _ => Token::Identifier(word),
                 }
             }
@@ -297,6 +303,25 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);
         assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);
+        assert_eq!(l.next(), None);
+    }
+
+    #[test]
+    fn test_bool_and_null() {
+        let s = String::from("let false = true != false == null + 1 - \"null\"");
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::False));
+        assert_eq!(l.next().unwrap(), Token::EqualSign);
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::True));
+        assert_eq!(l.next().unwrap(), Token::NotEqualSign);
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::False));
+        assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
+        assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Null));
+        assert_eq!(l.next().unwrap(), Token::PlusSign);
+        assert_eq!(l.next().unwrap(), Token::Integer(1));
+        assert_eq!(l.next().unwrap(), Token::MinusSign);
+        assert_eq!(l.next().unwrap(), Token::String(String::from("null")));
         assert_eq!(l.next(), None);
     }
 }

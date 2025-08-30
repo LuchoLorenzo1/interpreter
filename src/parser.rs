@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use crate::{
-    lexer::{Lexer, Token},
+    lexer::{Keyword, Lexer, Token},
     parser_error::ParserError,
 };
 
@@ -61,6 +61,10 @@ pub enum Operator {
 #[derive(Debug, PartialEq)]
 pub enum Primary {
     Integer(u32),
+    String(String),
+    Null,
+    False,
+    True,
 }
 
 impl<'a> Parser<'a> {
@@ -225,14 +229,18 @@ impl<'a> Parser<'a> {
         };
 
         let p = match self.lexer.next().unwrap() {
-            Token::Integer(u) => Expression::Primary(Primary::Integer(u)),
+            Token::Integer(u) => Primary::Integer(u),
+            Token::String(s) => Primary::String(s),
+            Token::Keyword(Keyword::True) => Primary::True,
+            Token::Keyword(Keyword::False) => Primary::False,
+            Token::Keyword(Keyword::Null) => Primary::Null,
             t => Err(ParserError::InvalidSyntax(format!(
                 "Unexpected token: {:?}",
                 t
             )))?,
         };
 
-        Ok(p)
+        Ok(Expression::Primary(p))
     }
 }
 
@@ -476,5 +484,50 @@ mod tests {
         assert!(err.is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn parsing_bool_and_null_expressions() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["true", "false", "null", "true == false", "null != false"];
+        let expected_results = vec![
+            Statement::Expression(Expression::Primary(Primary::True)),
+            Statement::Expression(Expression::Primary(Primary::False)),
+            Statement::Expression(Expression::Primary(Primary::Null)),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::True)),
+                Operator::Equality,
+                Box::new(Expression::Primary(Primary::False)),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::Null)),
+                Operator::Inequality,
+                Box::new(Expression::Primary(Primary::False)),
+            )),
+        ];
+
+        match_statements(expression, expected_results)
+    }
+
+    #[test]
+    fn parsing_string_expressions() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["\"hello\" + \" world\"", "\"foo\" == \"bar\"", "!\"messi\""];
+        let expected_results = vec![
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::String("hello".into()))),
+                Operator::Addition,
+                Box::new(Expression::Primary(Primary::String(" world".into()))),
+            )),
+            Statement::Expression(Expression::Binary(
+                Box::new(Expression::Primary(Primary::String("foo".into()))),
+                Operator::Equality,
+                Box::new(Expression::Primary(Primary::String("bar".into()))),
+            )),
+            Statement::Expression(Expression::Unary(
+                Operator::LogicalNot,
+                Box::new(Expression::Primary(Primary::String("messi".into()))),
+            )),
+        ];
+
+        match_statements(expression, expected_results)
     }
 }
