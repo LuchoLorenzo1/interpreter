@@ -19,6 +19,7 @@ pub enum Token {
     Integer(u32),
     Illegal(char),
     String(String),
+    NewLine,
     EqualSign,
     DoubleEqualSign,
     NotEqualSign,
@@ -31,7 +32,6 @@ pub enum Token {
     Asterisk,
     Slash,
     Comma,
-    Semicolon,
     OpenParenthesis,
     CloseParenthesis,
     OpenBrace,
@@ -62,8 +62,8 @@ impl Iterator for Lexer<'_> {
         };
 
         Some(match char {
+            '\n' | ';' => Token::NewLine,
             ',' => Token::Comma,
-            ';' => Token::Semicolon,
             '+' => Token::PlusSign,
             '-' => Token::MinusSign,
             '(' => Token::OpenParenthesis,
@@ -185,7 +185,7 @@ mod tests {
         let mut l = Lexer::new(&s);
         assert_eq!(l.next().unwrap(), Token::PlusSign);
         assert_eq!(l.next().unwrap(), Token::EqualSign);
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next().unwrap(), Token::Comma);
         assert_eq!(l.next().unwrap(), Token::MinusSign);
         assert_eq!(l.next(), None);
@@ -197,9 +197,9 @@ mod tests {
         let mut l = Lexer::new(&s);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Integer(2));
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next().unwrap(), Token::Integer(3));
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next().unwrap(), Token::Integer(44));
         assert_eq!(l.next().unwrap(), Token::Comma);
         assert_eq!(l.next().unwrap(), Token::Comma);
@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::PlusSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next(), None);
     }
 
@@ -277,7 +277,7 @@ mod tests {
             l.next().unwrap(),
             Token::String(String::from("abcdefghijklmnopqrstuvwxyz"))
         );
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next(), None);
     }
 
@@ -288,7 +288,7 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next(), None);
     }
 
@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
-        assert_eq!(l.next().unwrap(), Token::Semicolon);
+        assert_eq!(l.next().unwrap(), Token::NewLine);
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);
         assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);

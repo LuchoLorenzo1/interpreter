@@ -80,8 +80,25 @@ impl<'a> Parser<'a> {
         if let None = self.lexer.peek() {
             return Ok(());
         }
-        let expr = self.expression()?;
-        self.statements.push(Statement::Expression(expr));
+
+        while let Some(_) = self.lexer.peek() {
+            let expr = self.expression()?;
+            self.statements.push(Statement::Expression(expr));
+
+            if let Some(t) = self.lexer.next() {
+                match t {
+                    Token::NewLine => {}
+                    a => Err(ParserError::InvalidSyntax(
+                        format!("Expecting end of statement. Found {a:?}")
+                    ))?,
+                }
+            }
+
+            while let Some(Token::NewLine) = self.lexer.peek() {
+                self.lexer.next();
+            }
+        }
+
         Ok(())
     }
 
