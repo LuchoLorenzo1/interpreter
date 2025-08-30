@@ -21,7 +21,7 @@ pub struct Parser<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    // LetStatement(String, Expression),
+    LetStatement(String, Expression),
     // ReturnStatement,
     Expression(Expression),
 }
@@ -81,16 +81,20 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
 
-        while let Some(_) = self.lexer.peek() {
-            let expr = self.expression()?;
-            self.statements.push(Statement::Expression(expr));
+        while let Some(t) = self.lexer.peek() {
+            if t == &Token::Keyword(Keyword::Let) {
+                self.parse_let_statement()?;
+            } else {
+                let expr = self.expression()?;
+                self.statements.push(Statement::Expression(expr));
+            }
 
             if let Some(t) = self.lexer.next() {
                 match t {
                     Token::NewLine => {}
-                    a => Err(ParserError::InvalidSyntax(
-                        format!("Expecting end of statement. Found {a:?}")
-                    ))?,
+                    a => Err(ParserError::InvalidSyntax(format!(
+                        "Expecting end of statement. Found {a:?}"
+                    )))?,
                 }
             }
 
@@ -98,6 +102,36 @@ impl<'a> Parser<'a> {
                 self.lexer.next();
             }
         }
+
+        Ok(())
+    }
+
+    fn parse_let_statement(&mut self) -> Result<(), ParserError> {
+        self.lexer.next();
+
+        let var_name = match self.lexer.next() {
+            Some(Token::Identifier(s)) => s,
+            Some(k) => Err(ParserError::InvalidSyntax(format!(
+                "Expected Identifier in Let statement. Found {k:?}"
+            )))?,
+            None => Err(ParserError::InvalidSyntax(format!(
+                "Expected Identifier in Let statement."
+            )))?,
+        };
+
+        match self.lexer.next() {
+            Some(Token::EqualSign) => {}
+            Some(k) => Err(ParserError::InvalidSyntax(format!(
+                "Expected `=` after `let {var_name}`. Found {k:?}"
+            )))?,
+            None => Err(ParserError::InvalidSyntax(format!(
+                "Expected `=` after `let {var_name}`."
+            )))?,
+        };
+
+        let expr = self.expression()?;
+        self.statements
+            .push(Statement::LetStatement(var_name, expr));
 
         Ok(())
     }
