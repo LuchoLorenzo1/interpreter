@@ -15,6 +15,7 @@ pub enum Token {
     Keyword(Keyword),
     Integer(u32),
     Illegal(char),
+    String(String),
     EqualSign,
     DoubleEqualSign,
     NotEqualSign,
@@ -66,7 +67,23 @@ impl Iterator for Lexer<'_> {
             ')' => Token::CloseParenthesis,
             '{' => Token::OpenBrace,
             '}' => Token::CloseBrace,
-            '"' => Token::Quote,
+            '"' => {
+                let mut word: String = String::new();
+                while let Some(i) = self.chars.peek() {
+                    match i {
+                        'a'..='z' | 'A'..='Z' | '0'..='9' => {
+                            word.push(*i);
+                            self.chars.next();
+                        }
+                        '"' => {
+                            self.chars.next();
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+                Token::String(word)
+            }
             '*' => Token::Asterisk,
             '/' => Token::Slash,
             '!' => {
@@ -225,18 +242,35 @@ mod tests {
     }
 
     #[test]
+    fn test_basic_string() {
+        let s = String::from("\"messi\"");
+        let mut l = Lexer::new(&s).into_iter();
+        assert_eq!(l.next().unwrap(), Token::String(String::from("messi")));
+    }
+
+    #[test]
+    fn test_multiple_strings() {
+        let s = String::from("\"messi\"+(\"ronaldo\")");
+        let mut l = Lexer::new(&s).into_iter();
+
+        assert_eq!(l.next().unwrap(), Token::String(String::from("messi")));
+        assert_eq!(l.next().unwrap(), Token::PlusSign);
+        assert_eq!(l.next().unwrap(), Token::OpenParenthesis);
+        assert_eq!(l.next().unwrap(), Token::String(String::from("ronaldo")));
+        assert_eq!(l.next().unwrap(), Token::CloseParenthesis);
+    }
+
+    #[test]
     fn test_string() {
         let s = String::from("let xyz = \"abcdefghijklmnopqrstuvwxyz\";");
         let mut l = Lexer::new(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
         assert_eq!(l.next().unwrap(), Token::Identifier(String::from("xyz")));
         assert_eq!(l.next().unwrap(), Token::EqualSign);
-        assert_eq!(l.next().unwrap(), Token::Quote);
         assert_eq!(
             l.next().unwrap(),
-            Token::Identifier(String::from("abcdefghijklmnopqrstuvwxyz"))
+            Token::String(String::from("abcdefghijklmnopqrstuvwxyz"))
         );
-        assert_eq!(l.next().unwrap(), Token::Quote);
         assert_eq!(l.next().unwrap(), Token::Semicolon);
         assert_eq!(l.next(), None);
     }
