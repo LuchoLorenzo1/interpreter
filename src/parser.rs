@@ -3,6 +3,7 @@ use std::iter::Peekable;
 use crate::{
     lexer::{Keyword, Lexer, Token},
     parser_error::ParserError,
+    perr,
 };
 
 pub struct Parser<'a> {
@@ -89,12 +90,11 @@ impl<'a> Parser<'a> {
                 self.statements.push(Statement::Expression(expr));
             }
 
-            if let Some(t) = self.lexer.next() {
-                match t {
-                    Token::NewLine => {}
-                    a => Err(ParserError::InvalidSyntax(format!(
-                        "Expecting end of statement. Found {a:?}"
-                    )))?,
+            if let Some(_) = self.lexer.peek() {
+                match self.lexer.next() {
+                    Some(Token::NewLine) | None => {}
+                    Some(other) => perr!(unexpected other, "Expecting end of statement.")?,
+                    // None => perr!(syntax "Unexpected end of input. Expecting end of statement.")?,
                 }
             }
 
@@ -111,22 +111,16 @@ impl<'a> Parser<'a> {
 
         let var_name = match self.lexer.next() {
             Some(Token::Identifier(s)) => s,
-            Some(k) => Err(ParserError::InvalidSyntax(format!(
-                "Expected Identifier in Let statement. Found {k:?}"
-            )))?,
-            None => Err(ParserError::InvalidSyntax(format!(
-                "Expected Identifier in Let statement."
-            )))?,
+            Some(k) => perr!(unexpected k, "Expected identifier in let statement.")?,
+            None => {
+                perr!(syntax "Unexpected end of input. Expecting identifier in let statement.")?
+            }
         };
 
         match self.lexer.next() {
             Some(Token::EqualSign) => {}
-            Some(k) => Err(ParserError::InvalidSyntax(format!(
-                "Expected `=` after `let {var_name}`. Found {k:?}"
-            )))?,
-            None => Err(ParserError::InvalidSyntax(format!(
-                "Expected `=` after `let {var_name}`."
-            )))?,
+            Some(k) => perr!(unexpected k, "Expected `=` after `let {var_name}`.")?,
+            None => perr!(syntax "Unexpected end of input. Expecting `=` after `let {var_name}`.")?,
         };
 
         let expr = self.expression()?;
@@ -257,10 +251,8 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Result<Expression, ParserError> {
         match self.lexer.peek() {
-            None => return Err(ParserError::InvalidSyntax("Invalid syntax".into()))?,
-            Some(Token::NotSign | Token::MinusSign) => {
-                return self.expression();
-            }
+            None => perr!(syntax "Unexpected end of input. Expecting expression.")?,
+            Some(Token::NotSign | Token::MinusSign) => return self.expression(),
             Some(Token::OpenParenthesis) => {
                 self.lexer.next();
                 let right_expr = self.expression()?;
@@ -269,10 +261,7 @@ impl<'a> Parser<'a> {
                 if let Some(Token::CloseParenthesis) = next_token {
                     return Ok(right_expr);
                 } else {
-                    return Err(ParserError::InvalidSyntax(format!(
-                        "Expected closing parenthesis, found: {:?}",
-                        next_token
-                    )));
+                    return perr!(unexpected next_token.unwrap_or(Token::NewLine), "Expected closing parenthesis.")?;
                 }
             }
             Some(_) => {}
@@ -285,10 +274,7 @@ impl<'a> Parser<'a> {
             Token::Keyword(Keyword::False) => Primary::False,
             Token::Keyword(Keyword::Null) => Primary::Null,
             Token::Identifier(s) => Primary::Variable(s),
-            t => Err(ParserError::InvalidSyntax(format!(
-                "Unexpected token: {:?}",
-                t
-            )))?,
+            t => perr!(unexpected t, "Expected primary expression.")?,
         };
 
         Ok(Expression::Primary(p))
