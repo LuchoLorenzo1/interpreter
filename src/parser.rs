@@ -62,6 +62,7 @@ pub enum Operator {
 pub enum Primary {
     Integer(u32),
     String(String),
+    Variable(String),
     Null,
     False,
     True,
@@ -223,9 +224,7 @@ impl<'a> Parser<'a> {
                     )));
                 }
             }
-            Some(a) => {
-                println!("Primary token: {:?}", a);
-            }
+            Some(_) => {}
         };
 
         let p = match self.lexer.next().unwrap() {
@@ -234,6 +233,7 @@ impl<'a> Parser<'a> {
             Token::Keyword(Keyword::True) => Primary::True,
             Token::Keyword(Keyword::False) => Primary::False,
             Token::Keyword(Keyword::Null) => Primary::Null,
+            Token::Identifier(s) => Primary::Variable(s),
             t => Err(ParserError::InvalidSyntax(format!(
                 "Unexpected token: {:?}",
                 t
