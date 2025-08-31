@@ -6,8 +6,8 @@ use crate::{
     perr,
 };
 
-pub struct Parser<'a> {
-    pub lexer: Peekable<Lexer<'a>>,
+pub struct Parser<I: Iterator<Item = char>> {
+    pub lexer: Peekable<Lexer<I>>,
     pub statements: Vec<Statement>,
 }
 
@@ -69,8 +69,8 @@ pub enum Primary {
     True,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>) -> Self {
+impl<I: Iterator<Item = char>> Parser<I> {
+    pub fn new(lexer: Lexer<I>) -> Self {
         Parser {
             lexer: lexer.peekable(),
             statements: vec![],
@@ -297,7 +297,7 @@ mod tests {
         expected_results: Vec<Statement>,
     ) -> Result<(), Box<dyn Error>> {
         for (i, expr) in expressions.iter().enumerate() {
-            let l = Lexer::new(expr);
+            let l = Lexer::new_from_str(expr);
             let mut parser = Parser::new(l);
             parser.parse_ast()?;
 
@@ -314,7 +314,7 @@ mod tests {
         expected_results: Vec<Vec<Statement>>,
     ) -> Result<(), Box<dyn Error>> {
         for (i, expr) in programs.iter().enumerate() {
-            let l = Lexer::new(expr);
+            let l = Lexer::new_from_str(expr);
             let mut parser = Parser::new(l);
             parser.parse_ast()?;
 
@@ -531,7 +531,7 @@ mod tests {
 
         match_statements(expression, expected_results)?;
 
-        let l = Lexer::new("(()");
+        let l = Lexer::new_from_str("(()");
         let mut parser = Parser::new(l);
         let err = parser.parse_ast();
         assert!(err.is_err());

@@ -40,19 +40,33 @@ pub enum Token {
     NotSign,
 }
 
-pub struct Lexer<'a> {
-    chars: Peekable<Chars<'a>>,
+pub struct Lexer<I: Iterator<Item = char>> {
+    chars: Peekable<I>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(string: &'a str) -> Self {
+impl<'a> Lexer<Chars<'a>> {
+    pub fn new_from_str(string: &'a str) -> Self {
         return Lexer {
             chars: string.chars().peekable(),
         };
     }
 }
 
-impl Iterator for Lexer<'_> {
+impl<I> Lexer<I>
+where
+    I: Iterator<Item = char>,
+{
+    pub fn new(i: I) -> Self {
+        return Lexer {
+            chars: i.peekable(),
+        };
+    }
+}
+
+impl<I> Iterator for Lexer<I>
+where
+    I: Iterator<Item = char>,
+{
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -182,7 +196,7 @@ mod tests {
     #[test]
     fn lexing_signs() {
         let s = String::from("+ = ; , -");
-        let mut l = Lexer::new(&s);
+        let mut l = Lexer::new_from_str(&s);
         assert_eq!(l.next().unwrap(), Token::PlusSign);
         assert_eq!(l.next().unwrap(), Token::EqualSign);
         assert_eq!(l.next().unwrap(), Token::NewLine);
@@ -194,7 +208,7 @@ mod tests {
     #[test]
     fn lexing_numbers() {
         let s = String::from("1 2; 3; 44,,558");
-        let mut l = Lexer::new(&s);
+        let mut l = Lexer::new_from_str(&s);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Integer(2));
         assert_eq!(l.next().unwrap(), Token::NewLine);
@@ -211,7 +225,7 @@ mod tests {
     #[test]
     fn multiple_whitespaces() {
         let s = String::from("1 \t\t  2   \t\t  55");
-        let mut l = Lexer::new(&s);
+        let mut l = Lexer::new_from_str(&s);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Integer(2));
         assert_eq!(l.next().unwrap(), Token::Integer(55));
@@ -221,7 +235,7 @@ mod tests {
     #[test]
     fn lexing_basic_statement() {
         let s = String::from("let a = 71-1+1;");
-        let mut l = Lexer::new(&s);
+        let mut l = Lexer::new_from_str(&s);
         assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
         assert_eq!(l.next().unwrap(), Token::Identifier(String::from("a")));
         assert_eq!(l.next().unwrap(), Token::EqualSign);
@@ -237,7 +251,7 @@ mod tests {
     #[test]
     fn test_illegal_chars() {
         let s = String::from("1?2%3$");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::Illegal('?'));
         assert_eq!(l.next().unwrap(), Token::Integer(2));
@@ -250,14 +264,14 @@ mod tests {
     #[test]
     fn test_basic_string() {
         let s = String::from("\"messi\"");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::String(String::from("messi")));
     }
 
     #[test]
     fn test_multiple_strings() {
         let s = String::from("\"messi\"+(\"ronaldo\")");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
 
         assert_eq!(l.next().unwrap(), Token::String(String::from("messi")));
         assert_eq!(l.next().unwrap(), Token::PlusSign);
@@ -269,7 +283,7 @@ mod tests {
     #[test]
     fn test_string() {
         let s = String::from("let xyz = \"abcdefghijklmnopqrstuvwxyz\";");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
         assert_eq!(l.next().unwrap(), Token::Identifier(String::from("xyz")));
         assert_eq!(l.next().unwrap(), Token::EqualSign);
@@ -284,7 +298,7 @@ mod tests {
     #[test]
     fn test_double_equals() {
         let s = String::from("1 == 1;");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::DoubleEqualSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
@@ -295,7 +309,7 @@ mod tests {
     #[test]
     fn test_unequal() {
         let s = String::from("1 != 1; !===!=");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Integer(1));
         assert_eq!(l.next().unwrap(), Token::NotEqualSign);
         assert_eq!(l.next().unwrap(), Token::Integer(1));
@@ -309,7 +323,7 @@ mod tests {
     #[test]
     fn test_bool_and_null() {
         let s = String::from("let false = true != false == null + 1 - \"null\"");
-        let mut l = Lexer::new(&s).into_iter();
+        let mut l = Lexer::new_from_str(&s).into_iter();
         assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::Let));
         assert_eq!(l.next().unwrap(), Token::Keyword(Keyword::False));
         assert_eq!(l.next().unwrap(), Token::EqualSign);
