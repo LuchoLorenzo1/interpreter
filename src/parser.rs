@@ -90,12 +90,9 @@ impl<'a> Parser<'a> {
                 self.statements.push(Statement::Expression(expr));
             }
 
-            if let Some(_) = self.lexer.peek() {
-                match self.lexer.next() {
-                    Some(Token::NewLine) | None => {}
-                    Some(other) => perr!(unexpected other, "Expecting end of statement.")?,
-                    // None => perr!(syntax "Unexpected end of input. Expecting end of statement.")?,
-                }
+            match self.lexer.next() {
+                Some(Token::NewLine) | None => {}
+                Some(other) => perr!(unexpected other, "Expecting end of statement.")?,
             }
 
             while let Some(Token::NewLine) = self.lexer.peek() {
@@ -307,6 +304,25 @@ mod tests {
             assert_eq!(parser.statements.len(), 1);
             println!("{:#?}", parser.statements);
             assert_eq!(parser.statements[0], expected_results[i]);
+        }
+
+        Ok(())
+    }
+
+    fn match_programs(
+        programs: Vec<&str>,
+        expected_results: Vec<Vec<Statement>>,
+    ) -> Result<(), Box<dyn Error>> {
+        for (i, expr) in programs.iter().enumerate() {
+            let l = Lexer::new(expr);
+            let mut parser = Parser::new(l);
+            parser.parse_ast()?;
+
+            assert_eq!(parser.statements.len(), expected_results[i].len());
+
+            for (j, s) in parser.statements.into_iter().enumerate() {
+                assert_eq!(s, expected_results[i][j]);
+            }
         }
 
         Ok(())
@@ -566,5 +582,45 @@ mod tests {
         ];
 
         match_statements(expression, expected_results)
+    }
+
+    #[test]
+    fn parsing_let_statements() -> Result<(), Box<dyn Error>> {
+        let expression = vec!["let x = 5"];
+        let expected_results = vec![Statement::LetStatement(
+            "x".into(),
+            Expression::Primary(Primary::Integer(5)),
+        )];
+        match_statements(expression, expected_results)?;
+
+        let programs = vec![
+            "let name = \"John Doe\"\nlet a=b",
+            "let a = !true;;let b = false\n\n\nlet c = null",
+        ];
+        let expected_results = vec![
+            vec![
+                Statement::LetStatement(
+                    "name".into(),
+                    Expression::Primary(Primary::String("John Doe".into())),
+                ),
+                Statement::LetStatement(
+                    "a".into(),
+                    Expression::Primary(Primary::Variable("b".into())),
+                ),
+            ],
+            vec![
+                Statement::LetStatement(
+                    "a".into(),
+                    Expression::Unary(
+                        Operator::LogicalNot,
+                        Box::new(Expression::Primary(Primary::True)),
+                    ),
+                ),
+                Statement::LetStatement("b".into(), Expression::Primary(Primary::False)),
+                Statement::LetStatement("c".into(), Expression::Primary(Primary::Null)),
+            ],
+        ];
+
+        match_programs(programs, expected_results)
     }
 }
