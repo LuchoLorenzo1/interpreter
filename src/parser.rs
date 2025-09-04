@@ -1,9 +1,7 @@
 use std::iter::Peekable;
 
 use crate::{
-    lexer::{Keyword, Lexer, Token},
-    parser_error::ParserError,
-    perr,
+    expression::Expression, lexer::{Keyword, Lexer, Token}, parser_error::ParserError, perr
 };
 
 pub struct Parser<I: Iterator<Item = char>> {
@@ -25,13 +23,6 @@ pub enum Statement {
     LetStatement(String, Expression),
     // ReturnStatement,
     Expression(Expression),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Expression {
-    Binary(Box<Expression>, Operator, Box<Expression>),
-    Unary(Operator, Box<Expression>),
-    Primary(Primary),
 }
 
 #[derive(Debug, PartialEq)]
@@ -59,7 +50,7 @@ pub enum Operator {
     Negation,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Primary {
     Integer(u32),
     String(String),

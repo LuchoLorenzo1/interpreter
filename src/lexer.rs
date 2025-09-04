@@ -149,11 +149,11 @@ where
                 }
                 self.next()?
             }
-            '0'..'9' => {
+            '0'..='9' => {
                 let mut number: String = String::from(char);
                 while let Some(i) = self.chars.peek() {
                     match i {
-                        '0'..'9' => {
+                        '0'..='9' => {
                             number.push(*i);
                             self.chars.next();
                         }
