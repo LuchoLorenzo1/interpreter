@@ -1,7 +1,10 @@
 use std::iter::Peekable;
 
 use crate::{
-    expression::Expression, lexer::{Keyword, Lexer, Token}, parser_error::ParserError, perr
+    expression::Expression,
+    lexer::{Keyword, Lexer, Token},
+    parser_error::ParserError,
+    perr,
 };
 
 pub struct Parser<I: Iterator<Item = char>> {

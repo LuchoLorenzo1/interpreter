@@ -223,4 +223,133 @@ mod tests {
         ];
         match_statements(expressions, expected_results).unwrap();
     }
+
+    #[test]
+    fn test_unary_operations() {
+        let expressions = vec![
+            "-5",
+            "--9",
+            "!true",
+            "!false",
+            "!0",
+            "!1",
+            r#"!""#,
+            r#"! "hello" "#,
+        ];
+        let expected_results = vec![
+            Primary::Integer(-5),
+            Primary::Integer(9),
+            Primary::False,
+            Primary::True,
+            Primary::True,
+            Primary::False,
+            Primary::True,
+            Primary::False,
+        ];
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_true_comparison_operations() {
+        let expressions = vec![
+            "5 == 5",
+            "5 != 3",
+            "4 > 2",
+            "2 < 4",
+            "3 >= 3",
+            "2 <= 3",
+            r#""hello" == "hello""#,
+            r#""hello" != "world""#,
+            "true == true",
+            "false != true",
+            "null == null",
+            "null != 5",
+            r#""test" != null"#,
+            "10 != null",
+        ];
+
+        let expected_results = vec![Primary::True; expressions.len()];
+
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_false_comparison_operations() {
+        let expressions = vec![
+            "5 == 3",
+            "5 != 5",
+            "2 > 4",
+            "4 < 2",
+            "3 >= 5",
+            "4 <= 2",
+            r#""hello" == "world""#,
+            r#""hello" != "hello""#,
+            "true == false",
+            "false != false",
+            "null == 5",
+            "null != null",
+            r#""test" == null"#,
+            "10 == null",
+        ];
+
+        let expected_results = vec![Primary::False; expressions.len()];
+
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let expressions = vec![r#""Hello " + "world""#, r#""Foo" + "Bar""#];
+        let expected_results = vec![
+            Primary::String("Hello world".to_string()),
+            Primary::String("FooBar".to_string()),
+        ];
+
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_mixed_type_comparisons() {
+        let expressions = vec![
+            r#"5 == "5""#,
+            r#"true == 1"#,
+            r#"false == 0"#,
+            r#"null == false"#,
+            r#""hello" == true"#,
+        ];
+        let expected_results = vec![Primary::False; expressions.len()];
+
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_mixed_type_operations() {
+        let expressions = vec![
+            r#"5 + "5""#,
+            r#"true + 1"#,
+            r#"false + 0"#,
+            r#"null + false"#,
+            r#""hello" + true"#,
+            r#""hello" * true"#,
+            r#"5 * "2""#,
+            r#"null * 5"#,
+            r#"null + 5"#,
+        ];
+
+        for (_, expr) in expressions.iter().enumerate() {
+            let l = Lexer::new_from_str(expr);
+            let mut parser = Parser::new(l);
+            parser.parse_ast().unwrap();
+
+            assert_eq!(parser.statements.len(), 1);
+            println!("{:#?}", parser.statements);
+
+            match &parser.statements[0] {
+                Statement::Expression(e) => {
+                    assert!(e.exec().is_err())
+                }
+                _ => {}
+            };
+        }
+    }
 }

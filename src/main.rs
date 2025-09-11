@@ -1,7 +1,7 @@
-use std::io::{Write};
+use std::io::Write;
 
 use clap::Parser;
-use interpreter::{char_reader::CharReader, parser::{Statement}};
+use interpreter::{char_reader::CharReader, parser::Statement};
 
 #[derive(clap::Parser, Debug)]
 #[command(version, about, long_about = None)]
