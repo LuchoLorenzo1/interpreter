@@ -54,12 +54,12 @@ impl std::error::Error for ParserError {}
 #[macro_export]
 macro_rules! perr {
     (syntax $($arg:tt)*) => {
-        Err($crate::parser::ParserError::syntax(format!($($arg)*)))
+        Err(ParserError::syntax(format!($($arg)*)))
     };
     (unexpected $tok:expr, $($arg:tt)*) => {
-        Err($crate::parser::ParserError::unexpected($tok, format!($($arg)*)))
+        Err(ParserError::unexpected($tok, format!($($arg)*)))
     };
     (missing $tok:expr, $($arg:tt)*) => {
-        Err($crate::parser::ParserError::missing($tok, format!($($arg)*)))
+        Err(ParserError::missing($tok, format!($($arg)*)))
     };
 }

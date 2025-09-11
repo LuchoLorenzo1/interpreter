@@ -52,7 +52,7 @@ pub enum Operator {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Primary {
-    Integer(u32),
+    Integer(i64),
     String(String),
     Variable(String),
     Null,
@@ -275,7 +275,7 @@ mod tests {
 
     use super::*;
 
-    fn int(i: u32) -> Box<Expression> {
+    fn int(i: i64) -> Box<Expression> {
         Box::new(Expression::Primary(Primary::Integer(i)))
     }
 

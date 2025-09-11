@@ -2,6 +2,7 @@ use crate::parser::Operator;
 use crate::parser::Primary;
 use crate::parser::Primary::*;
 use crate::parser_error::ParserError;
+use crate::perr;
 
 #[derive(Debug, PartialEq)]
 pub enum Expression {
@@ -17,14 +18,23 @@ impl Expression {
                 let left_resolved = a.exec()?;
                 let right_resolved = b.exec()?;
 
-                if let (Integer(x), Integer(y)) = (left_resolved, right_resolved) {
-                    operation_between_integers(&x, &operator, &y)?
-                } else {
-                    Primary::Null
+                match (left_resolved, right_resolved) {
+                    (Integer(x), Integer(y)) => operation_between_integers(&x, &operator, &y)?,
+                    (Primary::Null, _) | (_, Primary::Null) => Primary::Null,
+                    _ => return perr!(syntax "Invalid binary operation"),
+                }
+            }
+            Expression::Unary(operator, expr) => {
+                let resolved = expr.exec()?;
+                match (operator, resolved) {
+                    (Operator::Negation, Integer(x)) => Integer(-x),
+                    (Operator::LogicalNot, True) => False,
+                    (Operator::LogicalNot, False) => True,
+                    (Operator::LogicalNot, Null) => Null,
+                    _ => return perr!(syntax "Invalid unary operation"),
                 }
             }
             Expression::Primary(p) => p.clone(),
-            _ => Null,
         };
 
         Ok(res)
@@ -32,9 +42,9 @@ impl Expression {
 }
 
 fn operation_between_integers(
-    left: &u32,
+    left: &i64,
     operator: &Operator,
-    right: &u32,
+    right: &i64,
 ) -> Result<Primary, ParserError> {
     let a = match operator {
         Operator::Addition => Integer(left + right),

@@ -16,7 +16,7 @@ pub enum Keyword {
 pub enum Token {
     Identifier(String),
     Keyword(Keyword),
-    Integer(u32),
+    Integer(i64),
     Illegal(char),
     String(String),
     NewLine,
@@ -160,7 +160,7 @@ where
                         _ => break,
                     }
                 }
-                Token::Integer(u32::from_str_radix(&number, 10).unwrap_or(0))
+                Token::Integer(i64::from_str_radix(&number, 10).unwrap_or(0))
             }
             'a'..='z' | 'A'..='Z' => {
                 let mut word: String = String::from(char);
