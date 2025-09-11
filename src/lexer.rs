@@ -2,7 +2,7 @@
 
 use std::{iter::Peekable, str::Chars};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
     Let,
     Fn,
@@ -14,7 +14,7 @@ pub enum Keyword {
     Null,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Identifier(String),
     Keyword(Keyword),

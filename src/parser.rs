@@ -23,9 +23,11 @@ pub struct Parser<I: Iterator<Item = char>> {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    LetStatement(String, Expression),
-    // ReturnStatement,
+    Let(String, Expression),
+    Return(Expression),
     Expression(Expression),
+    Scope(Vec<Statement>),
+    If(Expression, Vec<Statement>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -76,17 +78,14 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     pub fn parse_ast(&mut self) -> Result<(), ParserError> {
-        if let None = self.lexer.peek() {
+        if self.lexer.peek().is_none() {
             return Ok(());
         }
 
-        while let Some(t) = self.lexer.peek() {
-            if t == &Token::Keyword(Keyword::Let) {
-                self.parse_let_statement()?;
-            } else {
-                let expr = self.expression()?;
-                self.statements.push(Statement::Expression(expr));
-            }
+        while let Some(t) = self.lexer.peek().cloned() {
+            let statement = self.parse_next_statement(t)?;
+
+            self.statements.push(statement);
 
             match self.lexer.next() {
                 Some(Token::NewLine) | None => {}
@@ -101,7 +100,46 @@ impl<I: Iterator<Item = char>> Parser<I> {
         Ok(())
     }
 
-    fn parse_let_statement(&mut self) -> Result<(), ParserError> {
+    fn parse_next_statement(&mut self, t: Token) -> Result<Statement, ParserError> {
+        Ok(match t {
+            Token::Keyword(Keyword::Let) => self.parse_let_statement()?,
+            Token::OpenBrace => self.parse_scope()?,
+            _ => Statement::Expression(self.expression()?),
+        })
+    }
+
+    fn parse_scope(&mut self) -> Result<Statement, ParserError> {
+        self.lexer.next();
+
+        let mut statements = vec![];
+
+        if self.lexer.peek().is_none() {
+            return Ok(Statement::Scope(statements));
+        }
+
+        while let Some(t) = self.lexer.peek().cloned() {
+            let statement = self.parse_next_statement(t)?;
+
+            statements.push(statement);
+
+            while let Some(Token::NewLine) = self.lexer.peek() {
+                self.lexer.next();
+            }
+
+            match self.lexer.peek() {
+                Some(Token::CloseBrace) => {
+                    self.lexer.next();
+                    return Ok(Statement::Scope(statements));
+                }
+                None => perr!(syntax "Expecting closing bracket")?,
+                _ => {}
+            }
+        }
+
+        Ok(Statement::Scope(vec![]))
+    }
+
+    fn parse_let_statement(&mut self) -> Result<Statement, ParserError> {
         self.lexer.next();
 
         let var_name = match self.lexer.next() {
@@ -119,10 +157,8 @@ impl<I: Iterator<Item = char>> Parser<I> {
         };
 
         let expr = self.expression()?;
-        self.statements
-            .push(Statement::LetStatement(var_name, expr));
 
-        Ok(())
+        Ok(Statement::Let(var_name, expr))
     }
 
     fn expression(&mut self) -> Result<Expression, ParserError> {
@@ -611,7 +647,7 @@ mod tests {
     #[test]
     fn parsing_let_statements() -> Result<(), Box<dyn Error>> {
         let expression = vec!["let x = 5"];
-        let expected_results = vec![Statement::LetStatement(
+        let expected_results = vec![Statement::Let(
             "x".into(),
             Expression::Primary(Primary::Integer(5)),
         )];
@@ -623,28 +659,85 @@ mod tests {
         ];
         let expected_results = vec![
             vec![
-                Statement::LetStatement(
+                Statement::Let(
                     "name".into(),
                     Expression::Primary(Primary::String("John Doe".into())),
                 ),
-                Statement::LetStatement(
+                Statement::Let(
                     "a".into(),
                     Expression::Primary(Primary::Variable("b".into())),
                 ),
             ],
             vec![
-                Statement::LetStatement(
+                Statement::Let(
                     "a".into(),
                     Expression::Unary(
                         Operator::LogicalNot,
                         Box::new(Expression::Primary(Primary::True)),
                     ),
                 ),
-                Statement::LetStatement("b".into(), Expression::Primary(Primary::False)),
-                Statement::LetStatement("c".into(), Expression::Primary(Primary::Null)),
+                Statement::Let("b".into(), Expression::Primary(Primary::False)),
+                Statement::Let("c".into(), Expression::Primary(Primary::Null)),
             ],
         ];
 
         match_programs(programs, expected_results)
+    }
+
+    #[test]
+    fn test_scopes() -> Result<(), Box<dyn Error>> {
+        let programs = vec![
+            "{ let x = 5\n let y = 10 }",
+            "{ let x=5;\n\n\n let y=10;;;\n\n\n }",
+            "{ { { 1 + 1; let a = 1;;;} let b = 1 } true == true }",
+        ];
+        let expected_results = vec![
+            vec![Statement::Scope(vec![
+                Statement::Let("x".into(), Expression::Primary(Primary::Integer(5))),
+                Statement::Let("y".into(), Expression::Primary(Primary::Integer(10))),
+            ])],
+            vec![Statement::Scope(vec![
+                Statement::Let("x".into(), Expression::Primary(Primary::Integer(5))),
+                Statement::Let("y".into(), Expression::Primary(Primary::Integer(10))),
+            ])],
+            vec![Statement::Scope(vec![
+                Statement::Scope(vec![
+                    Statement::Scope(vec![
+                        Statement::Expression(Expression::Binary(
+                            int(1),
+                            Operator::Addition,
+                            int(1),
+                        )),
+                        Statement::Let("a".into(), Expression::Primary(Primary::Integer(1))),
+                    ]),
+                    Statement::Let("b".into(), Expression::Primary(Primary::Integer(1))),
+                ]),
+                Statement::Expression(Expression::Binary(
+                    Box::new(Expression::Primary(Primary::True)),
+                    Operator::Equality,
+                    Box::new(Expression::Primary(Primary::True)),
+                )),
+            ])],
+        ];
+
+        match_programs(programs, expected_results)
+    }
+
+    #[test]
+    fn scopes_should_fail() {
+        let programs = vec![
+            "{ let x = 5",
+            "let y = 10 }",
+            "{ { 1 + 1; let a = 1;",
+            "}",
+            "}}}",
+            "{ \n\n\n\n }\n\n}",
+        ];
+        for program in programs {
+            let l = Lexer::new_from_str(program);
+            let mut parser = Parser::new(l);
+            let err = parser.parse_ast();
+            assert!(err.is_err());
+        }
     }
 }

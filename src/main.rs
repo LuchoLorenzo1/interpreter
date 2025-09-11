@@ -53,9 +53,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for s in parser.statements {
             match s {
                 Statement::Expression(e) => println!("{:?}", e.exec()),
-                Statement::LetStatement(name, value) => println!("{name}={:?}", value.exec()),
+                Statement::Let(name, value) => println!("{name}={:?}", value.exec()),
+                _ => {},
             };
         }
+
     }
 
     Ok(())
