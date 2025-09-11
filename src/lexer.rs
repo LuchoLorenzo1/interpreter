@@ -7,6 +7,8 @@ pub enum Keyword {
     Let,
     Fn,
     Return,
+    If,
+    While,
     False,
     True,
     Null,
@@ -38,6 +40,8 @@ pub enum Token {
     CloseBrace,
     Quote,
     NotSign,
+    DoubleAmpersand,
+    DoublePipe,
 }
 
 pub struct Lexer<I: Iterator<Item = char>> {
@@ -100,6 +104,22 @@ where
                     }
                 }
                 Token::String(word)
+            }
+            '|' => {
+                if let Some('|') = self.chars.peek() {
+                    self.chars.next();
+                    Token::DoublePipe
+                } else {
+                    Token::Illegal('|')
+                }
+            }
+            '&' => {
+                if let Some('&') = self.chars.peek() {
+                    self.chars.next();
+                    Token::DoubleAmpersand
+                } else {
+                    Token::Illegal('&')
+                }
             }
             '*' => Token::Asterisk,
             '/' => Token::Slash,
@@ -178,6 +198,7 @@ where
                     "let" => Token::Keyword(Keyword::Let),
                     "return" => Token::Keyword(Keyword::Return),
                     "fn" => Token::Keyword(Keyword::Fn),
+                    "if" => Token::Keyword(Keyword::If),
                     "false" => Token::Keyword(Keyword::False),
                     "true" => Token::Keyword(Keyword::True),
                     "null" => Token::Keyword(Keyword::Null),

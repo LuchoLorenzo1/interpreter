@@ -51,6 +51,10 @@ pub enum Operator {
     /// Operators for Unary
     LogicalNot,
     Negation,
+
+    // Operators for Conditionals
+    And,
+    Or,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -122,7 +126,33 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn expression(&mut self) -> Result<Expression, ParserError> {
-        self.equality()
+        self.conditional()
+    }
+
+    fn conditional(&mut self) -> Result<Expression, ParserError> {
+        let mut equality_left = self.equality()?;
+
+        while let Some(tok) = self.lexer.peek() {
+            let op = match tok {
+                Token::DoublePipe => Some(Operator::Or),
+                Token::DoubleAmpersand => Some(Operator::And),
+                _ => break,
+            };
+
+            if let Some(operator) = op {
+                self.lexer.next();
+
+                let tmp = Expression::Binary(
+                    Box::new(equality_left),
+                    operator,
+                    Box::new(self.equality()?),
+                );
+
+                equality_left = tmp;
+            }
+        }
+
+        Ok(equality_left)
     }
 
     fn equality(&mut self) -> Result<Expression, ParserError> {

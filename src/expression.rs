@@ -16,6 +16,23 @@ impl Expression {
     pub fn exec(&self) -> Result<Primary, ParserError> {
         let res = match self {
             Expression::Binary(a, operator, b) => {
+                if let Operator::And = operator {
+                    let left_resolved = a.exec()?;
+                    if let Primary::Null | Primary::False = left_resolved {
+                        return Ok(left_resolved);
+                    }
+                    return Ok(b.exec()?);
+                }
+
+                if let Operator::Or = operator {
+                    let left_resolved = a.exec()?;
+                    if let Primary::Null | Primary::False = left_resolved {
+                        return Ok(b.exec()?);
+                    } else {
+                        return Ok(left_resolved);
+                    }
+                }
+
                 let left_resolved = a.exec()?;
                 let right_resolved = b.exec()?;
 
@@ -158,8 +175,7 @@ fn operation_between_integers(
                 Primary::False
             }
         }
-        Operator::Negation => todo!(),
-        Operator::LogicalNot => todo!(),
+        _ => perr!(syntax "invalid operation between integers")?,
     };
 
     Ok(a)
@@ -351,5 +367,55 @@ mod tests {
                 _ => {}
             };
         }
+    }
+
+    #[test]
+    fn test_conditional_operations_with_booleans() {
+        let expressions = vec![
+            "true || true",
+            "false || false",
+            "false || true",
+            "true || false",
+            "false && false",
+            "false && true",
+            "true && false",
+            "true && true",
+        ];
+
+        let expected_results = vec![
+            Primary::True,
+            Primary::False,
+            Primary::True,
+            Primary::True,
+            Primary::False,
+            Primary::False,
+            Primary::False,
+            Primary::True,
+        ];
+
+        match_statements(expressions, expected_results).unwrap();
+    }
+
+    #[test]
+    fn test_conditional_operations_with_others() {
+        let expressions = vec![
+            "true || 5",
+            "false || 8",
+            "true || 0",
+            "false || 0",
+            "5 && 9",
+            "0 && 9",
+        ];
+
+        let expected_results = vec![
+            Primary::True,
+            Primary::Integer(8),
+            Primary::True,
+            Primary::Integer(0),
+            Primary::Integer(9),
+            Primary::Integer(9),
+        ];
+
+        match_statements(expressions, expected_results).unwrap();
     }
 }
