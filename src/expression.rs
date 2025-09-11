@@ -1,6 +1,7 @@
+// use std::mem::discriminant;
+
 use crate::parser::Operator;
 use crate::parser::Primary;
-use crate::parser::Primary::*;
 use crate::parser_error::ParserError;
 use crate::perr;
 
@@ -18,19 +19,83 @@ impl Expression {
                 let left_resolved = a.exec()?;
                 let right_resolved = b.exec()?;
 
+                // if discriminant(&left_resolved) != discriminant(&right_resolved) {
+                //     return perr!(syntax "Cannot operate between different types");
+                // }
+
                 match (left_resolved, right_resolved) {
-                    (Integer(x), Integer(y)) => operation_between_integers(&x, &operator, &y)?,
-                    (Primary::Null, _) | (_, Primary::Null) => Primary::Null,
-                    _ => return perr!(syntax "Invalid binary operation"),
+                    (Primary::Integer(x), Primary::Integer(y)) => {
+                        operation_between_integers(&x, &operator, &y)?
+                    }
+                    (Primary::True, Primary::True) | (Primary::False, Primary::False) => {
+                        match operator {
+                            Operator::Equality => Primary::True,
+                            Operator::Inequality => Primary::False,
+                            _ => return perr!(syntax "Invalid binary operation"),
+                        }
+                    }
+                    (Primary::True, Primary::False) | (Primary::False, Primary::True) => {
+                        match operator {
+                            Operator::Equality => Primary::False,
+                            Operator::Inequality => Primary::True,
+                            _ => return perr!(syntax "Invalid binary operation"),
+                        }
+                    }
+                    (Primary::String(s1), Primary::String(s2)) => match operator {
+                        Operator::Equality => {
+                            if s1 == s2 {
+                                Primary::True
+                            } else {
+                                Primary::False
+                            }
+                        }
+                        Operator::Inequality => {
+                            if s1 != s2 {
+                                Primary::True
+                            } else {
+                                Primary::False
+                            }
+                        }
+                        Operator::Addition => Primary::String(format!("{}{}", s1, s2)),
+                        _ => return perr!(syntax "Invalid binary operation"),
+                    },
+                    (Primary::Null, Primary::Null) => match operator {
+                        Operator::Equality => Primary::True,
+                        Operator::Inequality => Primary::False,
+                        _ => return perr!(syntax "Invalid binary operation"),
+                    },
+                    (_, _) => {
+                        if operator == &Operator::Equality {
+                            Primary::False
+                        } else if operator == &Operator::Inequality {
+                            Primary::True
+                        } else {
+                            perr!(syntax "Invalid binary operation")?
+                        }
+                    }
                 }
             }
             Expression::Unary(operator, expr) => {
                 let resolved = expr.exec()?;
                 match (operator, resolved) {
-                    (Operator::Negation, Integer(x)) => Integer(-x),
-                    (Operator::LogicalNot, True) => False,
-                    (Operator::LogicalNot, False) => True,
-                    (Operator::LogicalNot, Null) => Null,
+                    (Operator::Negation, Primary::Integer(x)) => Primary::Integer(-x),
+                    (Operator::LogicalNot, Primary::True) => Primary::False,
+                    (Operator::LogicalNot, Primary::False) => Primary::True,
+                    (Operator::LogicalNot, Primary::Null) => Primary::True,
+                    (Operator::LogicalNot, Primary::String(s)) => {
+                        if s.is_empty() {
+                            Primary::True
+                        } else {
+                            Primary::False
+                        }
+                    }
+                    (Operator::LogicalNot, Primary::Integer(i)) => {
+                        if i == 0 {
+                            Primary::True
+                        } else {
+                            Primary::False
+                        }
+                    }
                     _ => return perr!(syntax "Invalid unary operation"),
                 }
             }
@@ -47,50 +112,50 @@ fn operation_between_integers(
     right: &i64,
 ) -> Result<Primary, ParserError> {
     let a = match operator {
-        Operator::Addition => Integer(left + right),
-        Operator::Subtraction => Integer(left - right),
-        Operator::Multiplication => Integer(left * right),
-        Operator::Division => Integer(left / right),
+        Operator::Addition => Primary::Integer(left + right),
+        Operator::Subtraction => Primary::Integer(left - right),
+        Operator::Multiplication => Primary::Integer(left * right),
+        Operator::Division => Primary::Integer(left / right),
         Operator::Equality => {
             if left == right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::Inequality => {
             if left != right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::GreaterThan => {
             if left > right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::LessThan => {
             if left < right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::GreaterThanOrEqual => {
             if left >= right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::LessThanOrEqual => {
             if left <= right {
-                True
+                Primary::True
             } else {
-                False
+                Primary::False
             }
         }
         Operator::Negation => todo!(),
