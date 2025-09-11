@@ -28,6 +28,7 @@ pub enum Statement {
     Expression(Expression),
     Scope(Vec<Statement>),
     If(Expression, Vec<Statement>),
+    While(Expression, Vec<Statement>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -104,6 +105,27 @@ impl<I: Iterator<Item = char>> Parser<I> {
         Ok(match t {
             Token::Keyword(Keyword::Let) => self.parse_let_statement()?,
             Token::OpenBrace => self.parse_scope()?,
+            Token::Keyword(Keyword::If) => {
+                self.lexer.next();
+                let condition = self.expression()?;
+                let scope = self.parse_scope()?;
+                if let Statement::Scope(statements) = scope {
+                    Statement::If(condition, statements)
+                } else {
+                    perr!(syntax "Expected a scope in if statement.")?
+                }
+            }
+            Token::Keyword(Keyword::While) => {
+                self.lexer.next();
+                let condition = self.expression()?;
+                let scope = self.parse_scope()?;
+                if let Statement::Scope(statements) = scope {
+                    Statement::While(condition, statements)
+                } else {
+                    perr!(syntax "Expected a scope in while statement.")?
+                }
+            }
+            Token::Keyword(Keyword::Return) => Statement::Return(self.expression()?),
             _ => Statement::Expression(self.expression()?),
         })
     }
@@ -374,6 +396,8 @@ mod tests {
         expected_results: Vec<Vec<Statement>>,
     ) -> Result<(), Box<dyn Error>> {
         for (i, expr) in programs.iter().enumerate() {
+            println!("Parsing program: {}", expr);
+
             let l = Lexer::new_from_str(expr);
             let mut parser = Parser::new(l);
             parser.parse_ast()?;
@@ -739,5 +763,92 @@ mod tests {
             let err = parser.parse_ast();
             assert!(err.is_err());
         }
+    }
+
+    #[test]
+    fn testing_if_and_while_statements() -> Result<(), Box<dyn Error>> {
+        let programs = vec![
+            "if true { let x = 5 }",
+            "if false { let y = 10 }",
+            "while true { let a = 1 }",
+            "while false { let b = 2 }",
+            "if true { if false { let x = 5 } }",
+            "while true { while false { let y = 10 } }",
+            "if true { while false { let a = 1 } }",
+            "while false { if true { let b = 2 } }",
+        ];
+
+        let expected_results = vec![
+            vec![Statement::If(
+                Expression::Primary(Primary::True),
+                vec![Statement::Let(
+                    "x".into(),
+                    Expression::Primary(Primary::Integer(5)),
+                )],
+            )],
+            vec![Statement::If(
+                Expression::Primary(Primary::False),
+                vec![Statement::Let(
+                    "y".into(),
+                    Expression::Primary(Primary::Integer(10)),
+                )],
+            )],
+            vec![Statement::While(
+                Expression::Primary(Primary::True),
+                vec![Statement::Let(
+                    "a".into(),
+                    Expression::Primary(Primary::Integer(1)),
+                )],
+            )],
+            vec![Statement::While(
+                Expression::Primary(Primary::False),
+                vec![Statement::Let(
+                    "b".into(),
+                    Expression::Primary(Primary::Integer(2)),
+                )],
+            )],
+            vec![Statement::If(
+                Expression::Primary(Primary::True),
+                vec![Statement::If(
+                    Expression::Primary(Primary::False),
+                    vec![Statement::Let(
+                        "x".into(),
+                        Expression::Primary(Primary::Integer(5)),
+                    )],
+                )],
+            )],
+            vec![Statement::While(
+                Expression::Primary(Primary::True),
+                vec![Statement::While(
+                    Expression::Primary(Primary::False),
+                    vec![Statement::Let(
+                        "y".into(),
+                        Expression::Primary(Primary::Integer(10)),
+                    )],
+                )],
+            )],
+            vec![Statement::If(
+                Expression::Primary(Primary::True),
+                vec![Statement::While(
+                    Expression::Primary(Primary::False),
+                    vec![Statement::Let(
+                        "a".into(),
+                        Expression::Primary(Primary::Integer(1)),
+                    )],
+                )],
+            )],
+            vec![Statement::While(
+                Expression::Primary(Primary::False),
+                vec![Statement::If(
+                    Expression::Primary(Primary::True),
+                    vec![Statement::Let(
+                        "b".into(),
+                        Expression::Primary(Primary::Integer(2)),
+                    )],
+                )],
+            )],
+        ];
+
+        match_programs(programs, expected_results)
     }
 }

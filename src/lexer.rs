@@ -199,6 +199,7 @@ where
                     "return" => Token::Keyword(Keyword::Return),
                     "fn" => Token::Keyword(Keyword::Fn),
                     "if" => Token::Keyword(Keyword::If),
+                    "while" => Token::Keyword(Keyword::While),
                     "false" => Token::Keyword(Keyword::False),
                     "true" => Token::Keyword(Keyword::True),
                     "null" => Token::Keyword(Keyword::Null),

@@ -54,10 +54,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match s {
                 Statement::Expression(e) => println!("{:?}", e.exec()),
                 Statement::Let(name, value) => println!("{name}={:?}", value.exec()),
-                _ => {},
+                _ => {}
             };
         }
-
     }
 
     Ok(())
