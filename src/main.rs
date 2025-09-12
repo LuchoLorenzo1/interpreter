@@ -1,7 +1,6 @@
-use std::io::Write;
-
 use clap::Parser;
-use interpreter::{char_reader::CharReader, parser::Statement};
+use interpreter::char_reader::CharReader;
+use interpreter::repl;
 
 #[derive(clap::Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -27,37 +26,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    loop {
-        print!(">> ");
-        std::io::stdout().flush().unwrap();
-
-        let mut line = String::new();
-        if std::io::stdin().read_line(&mut line).is_err() {
-            break;
-        }
-
-        let line = line.trim_end();
-        if line.trim() == "exit" {
-            break;
-        }
-
-        let lexer = interpreter::lexer::Lexer::new_from_str(line);
-        let mut parser = interpreter::parser::Parser::new(lexer);
-        parser.parse_ast()?;
-
-        // match parser.parse_ast() {
-        //     Ok(_) => println!("{:?}", parser.statements),
-        //     Err(e) => eprintln!("Error: {}", e),
-        // }
-
-        for s in parser.statements {
-            match s {
-                Statement::Expression(e) => println!("{:?}", e.exec()),
-                Statement::Let(name, value) => println!("{name}={:?}", value.exec()),
-                _ => {}
-            };
-        }
-    }
-
-    Ok(())
+    repl::repl()
 }
