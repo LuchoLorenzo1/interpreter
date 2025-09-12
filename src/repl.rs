@@ -4,9 +4,13 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
 
+use crate::executor::{Scope, execute_statement};
+
 pub fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let mut history: Vec<String> = vec![];
     let mut history_index: Option<usize> = None;
+
+    let mut scope = Scope::new();
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -134,14 +138,10 @@ pub fn repl() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         disable_raw_mode()?;
+
         for s in parser.statements {
-            match s {
-                crate::parser::Statement::Expression(e) => println!("{:?}", e.exec()),
-                crate::parser::Statement::Let(name, value) => {
-                    println!("{name}={:?}", value.exec())
-                }
-                _ => {}
-            }
+            let result = execute_statement(s, &mut scope)?;
+            println!("{:?}", result);
         }
         enable_raw_mode()?;
     }

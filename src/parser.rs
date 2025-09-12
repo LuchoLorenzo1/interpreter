@@ -64,7 +64,7 @@ pub enum Operator {
 pub enum Primary {
     Integer(i64),
     String(String),
-    Variable(String),
+    // Variable(String),
     Null,
     False,
     True,
@@ -352,7 +352,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             Token::Keyword(Keyword::True) => Primary::True,
             Token::Keyword(Keyword::False) => Primary::False,
             Token::Keyword(Keyword::Null) => Primary::Null,
-            Token::Identifier(s) => Primary::Variable(s),
+            Token::Identifier(s) => return Ok(Expression::Variable(s)),
             t => perr!(unexpected t, "Expected primary expression.")?,
         };
 
@@ -687,10 +687,7 @@ mod tests {
                     "name".into(),
                     Expression::Primary(Primary::String("John Doe".into())),
                 ),
-                Statement::Let(
-                    "a".into(),
-                    Expression::Primary(Primary::Variable("b".into())),
-                ),
+                Statement::Let("a".into(), Expression::Variable("b".into())),
             ],
             vec![
                 Statement::Let(

@@ -1,5 +1,6 @@
 // use std::mem::discriminant;
 
+use crate::executor::Scope;
 use crate::parser::Operator;
 use crate::parser::Primary;
 use crate::parser_error::ParserError;
@@ -10,31 +11,34 @@ pub enum Expression {
     Binary(Box<Expression>, Operator, Box<Expression>),
     Unary(Operator, Box<Expression>),
     Primary(Primary),
+    Variable(String),
 }
 
 impl Expression {
-    pub fn exec(&self) -> Result<Primary, ParserError> {
+    pub fn exec(&self, scope: &Scope) -> Result<Primary, ParserError> {
         let res = match self {
+            Expression::Primary(p) => p.clone(),
+            Expression::Variable(v) => scope.get(v),
             Expression::Binary(a, operator, b) => {
                 if let Operator::And = operator {
-                    let left_resolved = a.exec()?;
+                    let left_resolved = a.exec(scope)?;
                     if let Primary::Null | Primary::False = left_resolved {
                         return Ok(left_resolved);
                     }
-                    return Ok(b.exec()?);
+                    return Ok(b.exec(scope)?);
                 }
 
                 if let Operator::Or = operator {
-                    let left_resolved = a.exec()?;
+                    let left_resolved = a.exec(scope)?;
                     if let Primary::Null | Primary::False = left_resolved {
-                        return Ok(b.exec()?);
+                        return Ok(b.exec(scope)?);
                     } else {
                         return Ok(left_resolved);
                     }
                 }
 
-                let left_resolved = a.exec()?;
-                let right_resolved = b.exec()?;
+                let left_resolved = a.exec(scope)?;
+                let right_resolved = b.exec(scope)?;
 
                 // if discriminant(&left_resolved) != discriminant(&right_resolved) {
                 //     return perr!(syntax "Cannot operate between different types");
@@ -93,7 +97,7 @@ impl Expression {
                 }
             }
             Expression::Unary(operator, expr) => {
-                let resolved = expr.exec()?;
+                let resolved = expr.exec(scope)?;
                 match (operator, resolved) {
                     (Operator::Negation, Primary::Integer(x)) => Primary::Integer(-x),
                     (Operator::LogicalNot, Primary::True) => Primary::False,
@@ -116,7 +120,6 @@ impl Expression {
                     _ => return perr!(syntax "Invalid unary operation"),
                 }
             }
-            Expression::Primary(p) => p.clone(),
         };
 
         Ok(res)
@@ -196,6 +199,8 @@ mod tests {
         expressions: Vec<&str>,
         expected_results: Vec<Primary>,
     ) -> Result<(), Box<dyn Error>> {
+        let mut scope = Scope::new();
+
         for (i, expr) in expressions.iter().enumerate() {
             let l = Lexer::new_from_str(expr);
             let mut parser = Parser::new(l);
@@ -205,7 +210,7 @@ mod tests {
             println!("{:#?}", parser.statements);
 
             let result = match &parser.statements[0] {
-                Statement::Expression(e) => e.exec()?,
+                Statement::Expression(e) => e.exec(&mut scope)?,
                 _ => Primary::Null,
             };
 
@@ -352,6 +357,7 @@ mod tests {
             r#"null + 5"#,
         ];
 
+        let mut scope = Scope::new();
         for (_, expr) in expressions.iter().enumerate() {
             let l = Lexer::new_from_str(expr);
             let mut parser = Parser::new(l);
@@ -362,7 +368,7 @@ mod tests {
 
             match &parser.statements[0] {
                 Statement::Expression(e) => {
-                    assert!(e.exec().is_err())
+                    assert!(e.exec(&mut scope).is_err())
                 }
                 _ => {}
             };
