@@ -19,6 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let char_reader = CharReader::new(reader);
         let lexer = interpreter::lexer::Lexer::new(char_reader);
+
+        // println!("{:?}", lexer.collect::<Vec<_>>());
         let mut parser = interpreter::parser::Parser::new(lexer);
 
         parser.parse_ast()?;

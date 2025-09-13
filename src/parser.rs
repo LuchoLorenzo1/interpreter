@@ -9,6 +9,7 @@ use crate::{
 
 pub struct Parser<I: Iterator<Item = char>> {
     pub lexer: Peekable<Lexer<I>>,
+    curr: Option<Token>,
     pub statements: Vec<Statement>,
 }
 
@@ -72,41 +73,49 @@ pub enum Primary {
 
 impl<I: Iterator<Item = char>> Parser<I> {
     pub fn new(lexer: Lexer<I>) -> Self {
+        let mut p = lexer.peekable();
         Parser {
-            lexer: lexer.peekable(),
+            curr: p.next(),
+            lexer: p,
             statements: vec![],
         }
     }
 
-    pub fn parse_ast(&mut self) -> Result<(), ParserError> {
-        if self.lexer.peek().is_none() {
-            return Ok(());
-        }
+    fn next(&mut self) -> Option<Token> {
+        let prev = self.curr.take();
+        self.curr = self.lexer.next();
+        prev
+    }
 
-        while let Some(t) = self.lexer.peek().cloned() {
-            let statement = self.parse_next_statement(t)?;
+    pub fn parse_ast(&mut self) -> Result<(), ParserError> {
+        while self.curr.is_some() {
+            let statement = self.parse_next_statement()?;
 
             self.statements.push(statement);
 
-            match self.lexer.next() {
+            match self.next() {
                 Some(Token::NewLine) | None => {}
                 Some(other) => perr!(unexpected other, "Expecting end of statement.")?,
             }
 
-            while let Some(Token::NewLine) = self.lexer.peek() {
-                self.lexer.next();
+            while let Some(Token::NewLine) = self.curr {
+                self.next();
             }
         }
 
         Ok(())
     }
 
-    fn parse_next_statement(&mut self, t: Token) -> Result<Statement, ParserError> {
-        Ok(match t {
+    fn parse_next_statement(&mut self) -> Result<Statement, ParserError> {
+        if self.curr.is_none() {
+            return perr!(syntax "Unexpected end of input. Expecting statement.")?;
+        }
+
+        Ok(match self.curr.as_ref().unwrap() {
             Token::Keyword(Keyword::Let) => self.parse_let_statement()?,
             Token::OpenBrace => self.parse_scope()?,
             Token::Keyword(Keyword::If) => {
-                self.lexer.next();
+                self.next();
                 let condition = self.expression()?;
                 let scope = self.parse_scope()?;
                 if let Statement::Scope(statements) = scope {
@@ -116,7 +125,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
                 }
             }
             Token::Keyword(Keyword::While) => {
-                self.lexer.next();
+                self.next();
                 let condition = self.expression()?;
                 let scope = self.parse_scope()?;
                 if let Statement::Scope(statements) = scope {
@@ -131,26 +140,30 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn parse_scope(&mut self) -> Result<Statement, ParserError> {
-        self.lexer.next();
+        self.next();
 
         let mut statements = vec![];
 
-        if self.lexer.peek().is_none() {
+        if self.curr.is_none() {
             return Ok(Statement::Scope(statements));
         }
 
-        while let Some(t) = self.lexer.peek().cloned() {
-            let statement = self.parse_next_statement(t)?;
+        while let Some(Token::NewLine) = self.curr {
+            self.next();
+        }
+
+        while let Some(t) = self.curr.as_ref() {
+            let statement = self.parse_next_statement()?;
 
             statements.push(statement);
 
-            while let Some(Token::NewLine) = self.lexer.peek() {
-                self.lexer.next();
+            while let Some(Token::NewLine) = self.curr {
+                self.next();
             }
 
-            match self.lexer.peek() {
+            match self.curr {
                 Some(Token::CloseBrace) => {
-                    self.lexer.next();
+                    self.next();
                     return Ok(Statement::Scope(statements));
                 }
                 None => perr!(syntax "Expecting closing bracket")?,
@@ -162,9 +175,9 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn parse_let_statement(&mut self) -> Result<Statement, ParserError> {
-        self.lexer.next();
+        self.next();
 
-        let var_name = match self.lexer.next() {
+        let var_name = match self.next() {
             Some(Token::Identifier(s)) => s,
             Some(k) => perr!(unexpected k, "Expected identifier in let statement.")?,
             None => {
@@ -172,7 +185,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             }
         };
 
-        match self.lexer.next() {
+        match self.next() {
             Some(Token::EqualSign) => {}
             Some(k) => perr!(unexpected k, "Expected `=` after `let {var_name}`.")?,
             None => perr!(syntax "Unexpected end of input. Expecting `=` after `let {var_name}`.")?,
@@ -190,7 +203,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
     fn conditional(&mut self) -> Result<Expression, ParserError> {
         let mut equality_left = self.equality()?;
 
-        while let Some(tok) = self.lexer.peek() {
+        while let Some(tok) = self.curr.as_ref() {
             let op = match tok {
                 Token::DoublePipe => Some(Operator::Or),
                 Token::DoubleAmpersand => Some(Operator::And),
@@ -198,7 +211,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
 
             if let Some(operator) = op {
-                self.lexer.next();
+                self.next();
 
                 let tmp = Expression::Binary(
                     Box::new(equality_left),
@@ -216,7 +229,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
     fn equality(&mut self) -> Result<Expression, ParserError> {
         let mut comparison_left = self.comparison()?;
 
-        while let Some(tok) = self.lexer.peek() {
+        while let Some(tok) = self.curr.as_ref() {
             let op = match tok {
                 Token::DoubleEqualSign => Some(Operator::Equality),
                 Token::NotEqualSign => Some(Operator::Inequality),
@@ -224,7 +237,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
 
             if let Some(operator) = op {
-                self.lexer.next();
+                self.next();
 
                 let tmp = Expression::Binary(
                     Box::new(comparison_left),
@@ -242,7 +255,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
     fn comparison(&mut self) -> Result<Expression, ParserError> {
         let mut term = self.term()?;
 
-        while let Some(tok) = self.lexer.peek() {
+        while let Some(tok) = self.curr.as_ref() {
             let op = match tok {
                 Token::GreaterThan => Some(Operator::GreaterThan),
                 Token::GreaterThanOrEqual => Some(Operator::GreaterThanOrEqual),
@@ -252,7 +265,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
 
             if let Some(operator) = op {
-                self.lexer.next();
+                self.next();
                 let right_term = self.term()?;
 
                 let tmp = Expression::Binary(Box::new(term), operator, Box::new(right_term));
@@ -266,7 +279,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
     fn term(&mut self) -> Result<Expression, ParserError> {
         let mut factor = self.factor()?;
 
-        while let Some(tok) = self.lexer.peek() {
+        while let Some(tok) = self.curr.as_ref() {
             let op = match tok {
                 Token::PlusSign => Some(Operator::Addition),
                 Token::MinusSign => Some(Operator::Subtraction),
@@ -274,7 +287,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
 
             if let Some(operator) = op {
-                self.lexer.next();
+                self.next();
                 let tmp = Ok(Expression::Binary(
                     Box::new(factor),
                     operator,
@@ -291,7 +304,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
     fn factor(&mut self) -> Result<Expression, ParserError> {
         let mut unary = self.unary()?;
 
-        while let Some(tok) = self.lexer.peek() {
+        while let Some(tok) = self.curr.as_ref() {
             let op = match tok {
                 Token::Asterisk => Some(Operator::Multiplication),
                 Token::Slash => Some(Operator::Division),
@@ -299,7 +312,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
 
             if let Some(operator) = op {
-                self.lexer.next();
+                self.next();
                 let tmp = Ok(Expression::Binary(
                     Box::new(unary),
                     operator,
@@ -314,14 +327,14 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn unary(&mut self) -> Result<Expression, ParserError> {
-        let op = self.lexer.peek().and_then(|tok| match tok {
+        let op = self.curr.as_ref().and_then(|tok| match tok {
             Token::NotSign => Some(Operator::LogicalNot),
             Token::MinusSign => Some(Operator::Negation),
             _ => None,
         });
 
         if let Some(operator) = op {
-            self.lexer.next();
+            self.next();
             Ok(Expression::Unary(operator, Box::new(self.primary()?)))
         } else {
             self.primary()
@@ -329,31 +342,30 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn primary(&mut self) -> Result<Expression, ParserError> {
-        match self.lexer.peek() {
+        match self.curr {
             None => perr!(syntax "Unexpected end of input. Expecting expression.")?,
             Some(Token::NotSign | Token::MinusSign) => return self.expression(),
             Some(Token::OpenParenthesis) => {
-                self.lexer.next();
+                self.next();
                 let right_expr = self.expression()?;
-
-                let next_token = self.lexer.next();
-                if let Some(Token::CloseParenthesis) = next_token {
+                if let Some(Token::CloseParenthesis) = self.next() {
                     return Ok(right_expr);
                 } else {
-                    return perr!(unexpected next_token.unwrap_or(Token::NewLine), "Expected closing parenthesis.")?;
+                    return perr!(syntax "Expected closing parenthesis.")?;
                 }
             }
             Some(_) => {}
         };
 
-        let p = match self.lexer.next().unwrap() {
-            Token::Integer(u) => Primary::Integer(u),
-            Token::String(s) => Primary::String(s),
-            Token::Keyword(Keyword::True) => Primary::True,
-            Token::Keyword(Keyword::False) => Primary::False,
-            Token::Keyword(Keyword::Null) => Primary::Null,
-            Token::Identifier(s) => return Ok(Expression::Variable(s)),
-            t => perr!(unexpected t, "Expected primary expression.")?,
+        let p = match self.next() {
+            Some(Token::Integer(u)) => Primary::Integer(u),
+            Some(Token::String(s)) => Primary::String(s),
+            Some(Token::Keyword(Keyword::True)) => Primary::True,
+            Some(Token::Keyword(Keyword::False)) => Primary::False,
+            Some(Token::Keyword(Keyword::Null)) => Primary::Null,
+            Some(Token::Identifier(s)) => return Ok(Expression::Variable(s.clone())),
+            Some(t) => perr!(unexpected t, "Expected primary expression.")?,
+            None => perr!(syntax "Unexpected end of input.")?,
         };
 
         Ok(Expression::Primary(p))
