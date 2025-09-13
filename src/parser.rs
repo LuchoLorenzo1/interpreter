@@ -136,7 +136,10 @@ impl<I: Iterator<Item = char>> Parser<I> {
                     perr!(syntax "Expected a scope in while statement.")?
                 }
             }
-            Token::Keyword(Keyword::Return) => Statement::Return(self.expression()?),
+            Token::Keyword(Keyword::Return) => {
+                self.next();
+                Statement::Return(self.expression()?)
+            }
             _ => Statement::Expression(self.expression()?),
         })
     }

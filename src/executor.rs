@@ -3,7 +3,6 @@ use std::{cell::RefCell, collections::HashMap};
 use crate::{
     parser::{Primary, Statement},
     parser_error::ParserError,
-    perr,
 };
 
 #[derive(Debug)]
@@ -62,27 +61,65 @@ impl<'a> Scope<'a> {
     }
 }
 
-pub fn execute_statement(statement: Statement, scope: &Scope) -> Result<Primary, ParserError> {
+pub fn execute(statements: Vec<Statement>) -> Result<Primary, ParserError> {
+    let scope = Scope::new();
+
+    for statement in statements {
+        if let (p, true) = execute_statement(&statement, &scope)? {
+            return Ok(p);
+        }
+    }
+
+    Ok(Primary::Null)
+}
+
+/// Returns (Primary, bool) where bool indicates if it's a return statement
+pub fn execute_statement(
+    statement: &Statement,
+    scope: &Scope,
+) -> Result<(Primary, bool), ParserError> {
     match statement {
-        Statement::Expression(expr) => expr.exec(&scope),
+        Statement::Expression(expr) => {
+            let p = expr.exec(&scope)?;
+            Ok((p, false))
+        }
         Statement::Let(var, expr) => {
             let value = expr.exec(&scope)?;
-            scope.define(var, value.clone());
-
-            Ok(Primary::Null)
+            scope.define(var.clone(), value.clone());
+            Ok((Primary::Null, false))
         }
-        Statement::If(conditional, stataments) => {
-            let value = conditional.exec(&scope)?;
-
+        Statement::Scope(statements) => {
             let _scope = Scope::from_scope(scope);
-            if let Primary::True = value {
-                for i in stataments {
-                    execute_statement(i, &_scope)?;
+            for s in statements {
+                if let (p, true) = execute_statement(&s, &_scope)? {
+                    return Ok((p, true));
                 }
             }
-
-            Ok(Primary::Null)
+            Ok((Primary::Null, false))
         }
-        _ => perr!(syntax "Unsupported statement")?,
+        Statement::If(conditional, statements) => {
+            let value = conditional.exec(&scope)?;
+            let _scope = Scope::from_scope(scope);
+            if let Primary::True = value {
+                for s in statements {
+                    if let (p, true) = execute_statement(&s, &_scope)? {
+                        return Ok((p, true));
+                    }
+                }
+            }
+            Ok((Primary::Null, false))
+        }
+        Statement::While(conditional, statements) => {
+            while let Primary::True = conditional.exec(&scope)? {
+                let _scope = Scope::from_scope(scope);
+                for s in statements {
+                    if let (p, true) = execute_statement(&s, &_scope)? {
+                        return Ok((p, true));
+                    }
+                }
+            }
+            Ok((Primary::Null, false))
+        }
+        Statement::Return(expr) => Ok((expr.exec(&scope)?, true)),
     }
 }

@@ -24,7 +24,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut parser = interpreter::parser::Parser::new(lexer);
 
         parser.parse_ast()?;
-        println!("{:?}", parser.statements);
+        let res = interpreter::executor::execute(parser.statements);
+        match res {
+            Err(e) => eprintln!("Error: {:?}", e),
+            Ok(r) => println!("{:?}", r),
+        }
+
         return Ok(());
     }
 

@@ -10,7 +10,7 @@ pub fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let mut history: Vec<String> = vec![];
     let mut history_index: Option<usize> = None;
 
-    let mut scope = Scope::new();
+    let scope = Scope::new();
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -138,10 +138,12 @@ pub fn repl() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         disable_raw_mode()?;
-
         for s in parser.statements {
-            let result = execute_statement(s, &mut scope)?;
-            println!("{:?}", result);
+            let (p, b) = execute_statement(&s, &scope)?;
+            println!("{:?}", p);
+            if b {
+                return Ok(());
+            }
         }
         enable_raw_mode()?;
     }

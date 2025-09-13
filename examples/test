@@ -1,5 +1,7 @@
-let a = 1 + 1;
+let a = 99
 
-let b = false
+while a >= 50 {
+	a = a - 1
+} 
 
-1+1
+return a
