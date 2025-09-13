@@ -20,7 +20,23 @@ impl<'a> Scope<'a> {
         }
     }
 
-    fn set(&self, var: String, exec: Primary) {
+    pub fn set(&self, var: &String, new_p: Primary) -> Option<()> {
+        let mut vars = self.variables.borrow_mut();
+
+        if let Some(p) = vars.get_mut(var) {
+            *p = new_p;
+            return Some(());
+        }
+
+        if let Some(prev_scope) = self.prev_scope {
+            prev_scope.set(var, new_p);
+            return Some(());
+        }
+
+        None
+    }
+
+    pub fn define(&self, var: String, exec: Primary) {
         let mut vars = self.variables.borrow_mut();
         vars.insert(var, exec);
     }
@@ -30,8 +46,8 @@ impl<'a> Scope<'a> {
         if let Some(p) = vars.get(v) {
             p.clone()
         } else {
-            if let Some(_s) = self.prev_scope {
-                _s.get(v)
+            if let Some(prev_scope) = self.prev_scope {
+                prev_scope.get(v)
             } else {
                 Primary::Null
             }
@@ -40,7 +56,7 @@ impl<'a> Scope<'a> {
 
     fn from_scope(scope: &'a Scope) -> Self {
         Scope {
-            variables: scope.variables.clone(),
+            variables: RefCell::new(HashMap::new()),
             prev_scope: Some(scope),
         }
     }
@@ -51,7 +67,7 @@ pub fn execute_statement(statement: Statement, scope: &Scope) -> Result<Primary,
         Statement::Expression(expr) => expr.exec(&scope),
         Statement::Let(var, expr) => {
             let value = expr.exec(&scope)?;
-            scope.set(var, value.clone());
+            scope.define(var, value.clone());
 
             Ok(Primary::Null)
         }

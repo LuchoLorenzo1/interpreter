@@ -59,6 +59,8 @@ pub enum Operator {
     // Operators for Conditionals
     And,
     Or,
+
+    Assignment,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -152,7 +154,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             self.next();
         }
 
-        while let Some(t) = self.curr.as_ref() {
+        while self.curr.is_some() {
             let statement = self.parse_next_statement()?;
 
             statements.push(statement);
@@ -197,6 +199,26 @@ impl<I: Iterator<Item = char>> Parser<I> {
     }
 
     fn expression(&mut self) -> Result<Expression, ParserError> {
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expression, ParserError> {
+        if let Some(Token::Identifier(_)) = self.curr {
+            if let Some(Token::EqualSign) = self.lexer.peek() {
+                let variable = self.next();
+                let s = if let Some(Token::Identifier(s)) = variable {
+                    s
+                } else {
+                    perr!(syntax "Expected identifier in assignment expression.")?
+                };
+
+                self.next();
+                let cond = self.conditional()?;
+
+                return Ok(Expression::Assignment(s, Box::new(cond)));
+            }
+        }
+
         self.conditional()
     }
 

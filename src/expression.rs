@@ -12,6 +12,7 @@ pub enum Expression {
     Unary(Operator, Box<Expression>),
     Primary(Primary),
     Variable(String),
+    Assignment(String, Box<Expression>),
 }
 
 impl Expression {
@@ -19,83 +20,15 @@ impl Expression {
         let res = match self {
             Expression::Primary(p) => p.clone(),
             Expression::Variable(v) => scope.get(v),
-            Expression::Binary(a, operator, b) => {
-                if let Operator::And = operator {
-                    let left_resolved = a.exec(scope)?;
-                    if let Primary::Null | Primary::False = left_resolved {
-                        return Ok(left_resolved);
-                    }
-                    return Ok(b.exec(scope)?);
+            Expression::Assignment(v, exp) => {
+                let p = exp.exec(scope)?;
+                let res = scope.set(v, p.clone());
+                if res.is_none() {
+                    return perr!(syntax "Variable '{}' not defined", v);
                 }
-
-                if let Operator::Or = operator {
-                    let left_resolved = a.exec(scope)?;
-                    if let Primary::Null | Primary::False = left_resolved {
-                        return Ok(b.exec(scope)?);
-                    } else {
-                        return Ok(left_resolved);
-                    }
-                }
-
-                let left_resolved = a.exec(scope)?;
-                let right_resolved = b.exec(scope)?;
-
-                // if discriminant(&left_resolved) != discriminant(&right_resolved) {
-                //     return perr!(syntax "Cannot operate between different types");
-                // }
-
-                match (left_resolved, right_resolved) {
-                    (Primary::Integer(x), Primary::Integer(y)) => {
-                        operation_between_integers(&x, &operator, &y)?
-                    }
-                    (Primary::True, Primary::True) | (Primary::False, Primary::False) => {
-                        match operator {
-                            Operator::Equality => Primary::True,
-                            Operator::Inequality => Primary::False,
-                            _ => return perr!(syntax "Invalid binary operation"),
-                        }
-                    }
-                    (Primary::True, Primary::False) | (Primary::False, Primary::True) => {
-                        match operator {
-                            Operator::Equality => Primary::False,
-                            Operator::Inequality => Primary::True,
-                            _ => return perr!(syntax "Invalid binary operation"),
-                        }
-                    }
-                    (Primary::String(s1), Primary::String(s2)) => match operator {
-                        Operator::Equality => {
-                            if s1 == s2 {
-                                Primary::True
-                            } else {
-                                Primary::False
-                            }
-                        }
-                        Operator::Inequality => {
-                            if s1 != s2 {
-                                Primary::True
-                            } else {
-                                Primary::False
-                            }
-                        }
-                        Operator::Addition => Primary::String(format!("{}{}", s1, s2)),
-                        _ => return perr!(syntax "Invalid binary operation"),
-                    },
-                    (Primary::Null, Primary::Null) => match operator {
-                        Operator::Equality => Primary::True,
-                        Operator::Inequality => Primary::False,
-                        _ => return perr!(syntax "Invalid binary operation"),
-                    },
-                    (_, _) => {
-                        if operator == &Operator::Equality {
-                            Primary::False
-                        } else if operator == &Operator::Inequality {
-                            Primary::True
-                        } else {
-                            perr!(syntax "Invalid binary operation")?
-                        }
-                    }
-                }
+                p
             }
+            Expression::Binary(a, operator, b) => binary_operation(scope, a, operator, b)?,
             Expression::Unary(operator, expr) => {
                 let resolved = expr.exec(scope)?;
                 match (operator, resolved) {
@@ -124,6 +57,87 @@ impl Expression {
 
         Ok(res)
     }
+}
+
+fn binary_operation(
+    scope: &Scope,
+    a: &Box<Expression>,
+    operator: &Operator,
+    b: &Box<Expression>,
+) -> Result<Primary, ParserError> {
+    if let Operator::And = operator {
+        let left_resolved = a.exec(scope)?;
+        if let Primary::Null | Primary::False = left_resolved {
+            return Ok(left_resolved);
+        }
+        return Ok(b.exec(scope)?);
+    }
+
+    if let Operator::Or = operator {
+        let left_resolved = a.exec(scope)?;
+        if let Primary::Null | Primary::False = left_resolved {
+            return Ok(b.exec(scope)?);
+        } else {
+            return Ok(left_resolved);
+        }
+    }
+
+    let left_resolved = a.exec(scope)?;
+    let right_resolved = b.exec(scope)?;
+
+    // if discriminant(&left_resolved) != discriminant(&right_resolved) {
+    //     return perr!(syntax "Cannot operate between different types");
+    // }
+
+    let p = match (left_resolved, right_resolved) {
+        (Primary::Integer(x), Primary::Integer(y)) => {
+            operation_between_integers(&x, &operator, &y)?
+        }
+        (Primary::True, Primary::True) | (Primary::False, Primary::False) => match operator {
+            Operator::Equality => Primary::True,
+            Operator::Inequality => Primary::False,
+            _ => return perr!(syntax "Invalid binary operation"),
+        },
+        (Primary::True, Primary::False) | (Primary::False, Primary::True) => match operator {
+            Operator::Equality => Primary::False,
+            Operator::Inequality => Primary::True,
+            _ => return perr!(syntax "Invalid binary operation"),
+        },
+        (Primary::String(s1), Primary::String(s2)) => match operator {
+            Operator::Equality => {
+                if s1 == s2 {
+                    Primary::True
+                } else {
+                    Primary::False
+                }
+            }
+            Operator::Inequality => {
+                if s1 != s2 {
+                    Primary::True
+                } else {
+                    Primary::False
+                }
+            }
+            Operator::Addition => Primary::String(format!("{}{}", s1, s2)),
+            _ => return perr!(syntax "Invalid binary operation"),
+        },
+        (Primary::Null, Primary::Null) => match operator {
+            Operator::Equality => Primary::True,
+            Operator::Inequality => Primary::False,
+            _ => return perr!(syntax "Invalid binary operation"),
+        },
+        (_, _) => {
+            if operator == &Operator::Equality {
+                Primary::False
+            } else if operator == &Operator::Inequality {
+                Primary::True
+            } else {
+                perr!(syntax "Invalid binary operation")?
+            }
+        }
+    };
+
+    Ok(p)
 }
 
 fn operation_between_integers(
