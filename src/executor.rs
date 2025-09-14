@@ -120,6 +120,7 @@ pub fn execute_statement(
             }
             Ok((Primary::Null, false))
         }
+        Statement::Function(params, statements) => Ok((Primary::Null, false)),
         Statement::Return(expr) => Ok((expr.exec(&scope)?, true)),
     }
 }

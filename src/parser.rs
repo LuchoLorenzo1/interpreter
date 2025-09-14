@@ -30,6 +30,7 @@ pub enum Statement {
     Scope(Vec<Statement>),
     If(Expression, Vec<Statement>),
     While(Expression, Vec<Statement>),
+    Function(Vec<String>, Vec<Statement>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -136,6 +137,41 @@ impl<I: Iterator<Item = char>> Parser<I> {
                     perr!(syntax "Expected a scope in while statement.")?
                 }
             }
+            Token::Keyword(Keyword::Function) => {
+                self.next();
+
+                let func_name = match self.next() {
+                    Some(Token::Identifier(s)) => s,
+                    _ => perr!(syntax "Expected function name after `fn`.")?,
+                };
+
+                match self.next() {
+                    Some(Token::OpenParenthesis) => {}
+                    _ => perr!(syntax "Expected opening parenthesis after `fn {func_name}`.")?,
+                };
+
+                let mut params = Vec::new();
+                while let Some(tok) = self.next() {
+                    match tok {
+                        Token::CloseParenthesis => break,
+                        Token::Identifier(s) => params.push(s),
+                        _ => perr!(syntax "Expected parameter name or closing parenthesis.")?,
+                    };
+
+                    match self.next() {
+                        Some(Token::CloseParenthesis) => break,
+                        Some(Token::Comma) => {}
+                        _ => perr!(syntax "Expected parameter name or closing parenthesis.")?,
+                    };
+                }
+
+                let scope = self.parse_scope()?;
+                if let Statement::Scope(statements) = scope {
+                    Statement::Function(params, statements)
+                } else {
+                    perr!(syntax "Expected a scope after function definition.")?
+                }
+            }
             Token::Keyword(Keyword::Return) => {
                 self.next();
                 Statement::Return(self.expression()?)
@@ -150,11 +186,16 @@ impl<I: Iterator<Item = char>> Parser<I> {
         let mut statements = vec![];
 
         if self.curr.is_none() {
-            return Ok(Statement::Scope(statements));
+            perr!(syntax "Unexpected end of input. Expecting statement or closing bracket.")?
         }
 
         while let Some(Token::NewLine) = self.curr {
             self.next();
+        }
+
+        if let Some(Token::CloseBrace) = self.curr {
+            self.next();
+            return Ok(Statement::Scope(statements));
         }
 
         while self.curr.is_some() {
@@ -745,11 +786,27 @@ mod tests {
     #[test]
     fn test_scopes() -> Result<(), Box<dyn Error>> {
         let programs = vec![
+            "{}",
+            "{};{};{}",
+            "{1}",
+            "{1+1}",
             "{ let x = 5\n let y = 10 }",
             "{ let x=5;\n\n\n let y=10;;;\n\n\n }",
             "{ { { 1 + 1; let a = 1;;;} let b = 1 } true == true }",
         ];
         let expected_results = vec![
+            vec![Statement::Scope(vec![])],
+            vec![
+                Statement::Scope(vec![]),
+                Statement::Scope(vec![]),
+                Statement::Scope(vec![]),
+            ],
+            vec![Statement::Scope(vec![Statement::Expression(
+                Expression::Primary(Primary::Integer(1)),
+            )])],
+            vec![Statement::Scope(vec![Statement::Expression(
+                Expression::Binary(int(1), Operator::Addition, int(1)),
+            )])],
             vec![Statement::Scope(vec![
                 Statement::Let("x".into(), Expression::Primary(Primary::Integer(5))),
                 Statement::Let("y".into(), Expression::Primary(Primary::Integer(10))),
@@ -784,6 +841,8 @@ mod tests {
     #[test]
     fn scopes_should_fail() {
         let programs = vec![
+            "{",
+            "}",
             "{ let x = 5",
             "let y = 10 }",
             "{ { 1 + 1; let a = 1;",
@@ -878,6 +937,65 @@ mod tests {
                     vec![Statement::Let(
                         "b".into(),
                         Expression::Primary(Primary::Integer(2)),
+                    )],
+                )],
+            )],
+        ];
+
+        match_programs(programs, expected_results)
+    }
+
+    #[test]
+    fn test_parsing_function_definitions() -> Result<(), Box<dyn Error>> {
+        let programs = vec![
+            "fn TRUE() { return true; }",
+            "fn myFunc() { let x = 5 }",
+            "fn add(a, b) { a + b }",
+            "fn complex(a, b, c) { if a == b { while c < 10 { c = c + 1 } } }",
+        ];
+
+        let expected_results = vec![
+            vec![Statement::Function(
+                vec![],
+                vec![Statement::Return(Expression::Primary(Primary::True))],
+            )],
+            vec![Statement::Function(
+                vec![],
+                vec![Statement::Let(
+                    "x".into(),
+                    Expression::Primary(Primary::Integer(5)),
+                )],
+            )],
+            vec![Statement::Function(
+                vec!["a".into(), "b".into()],
+                vec![Statement::Expression(Expression::Binary(
+                    Box::new(Expression::Variable("a".into())),
+                    Operator::Addition,
+                    Box::new(Expression::Variable("b".into())),
+                ))],
+            )],
+            vec![Statement::Function(
+                vec!["a".into(), "b".into(), "c".into()],
+                vec![Statement::If(
+                    Expression::Binary(
+                        Box::new(Expression::Variable("a".into())),
+                        Operator::Equality,
+                        Box::new(Expression::Variable("b".into())),
+                    ),
+                    vec![Statement::While(
+                        Expression::Binary(
+                            Box::new(Expression::Variable("c".into())),
+                            Operator::LessThan,
+                            Box::new(Expression::Primary(Primary::Integer(10))),
+                        ),
+                        vec![Statement::Expression(Expression::Assignment(
+                            "c".into(),
+                            Box::new(Expression::Binary(
+                                Box::new(Expression::Variable("c".into())),
+                                Operator::Addition,
+                                Box::new(Expression::Primary(Primary::Integer(1))),
+                            )),
+                        ))],
                     )],
                 )],
             )],

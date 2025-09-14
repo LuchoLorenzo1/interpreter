@@ -5,7 +5,7 @@ use std::{iter::Peekable, str::Chars};
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
     Let,
-    Fn,
+    Function,
     Return,
     If,
     While,
@@ -197,7 +197,7 @@ where
                 match word.as_str() {
                     "let" => Token::Keyword(Keyword::Let),
                     "return" => Token::Keyword(Keyword::Return),
-                    "fn" => Token::Keyword(Keyword::Fn),
+                    "fn" => Token::Keyword(Keyword::Function),
                     "if" => Token::Keyword(Keyword::If),
                     "while" => Token::Keyword(Keyword::While),
                     "false" => Token::Keyword(Keyword::False),
