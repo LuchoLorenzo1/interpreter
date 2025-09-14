@@ -429,12 +429,47 @@ impl<I: Iterator<Item = char>> Parser<I> {
             Some(Token::Keyword(Keyword::True)) => Primary::True,
             Some(Token::Keyword(Keyword::False)) => Primary::False,
             Some(Token::Keyword(Keyword::Null)) => Primary::Null,
-            Some(Token::Identifier(s)) => return Ok(Expression::Variable(s.clone())),
+            Some(Token::Identifier(s)) => {
+                if let Some(Token::OpenParenthesis) = self.curr {
+                    return self.parse_function_call_params();
+                }
+                return Ok(Expression::Variable(s.clone()));
+            }
             Some(t) => perr!(unexpected t, "Expected primary expression.")?,
             None => perr!(syntax "Unexpected end of input.")?,
         };
 
         Ok(Expression::Primary(p))
+    }
+
+    pub fn parse_function_call_params(&mut self) -> Result<Expression, ParserError> {
+        self.next();
+
+        if let Some(Token::CloseParenthesis) = self.curr {
+            self.next();
+            return Ok(Expression::Call(vec![]));
+        }
+
+        let mut params: Vec<Box<Expression>> = Vec::new();
+        loop {
+            println!("A. Current token: {:?}", self.curr);
+            if self.curr.is_none() {
+                perr!(syntax "expected function call arguments")?
+            }
+
+            let exp = self.expression()?;
+            params.push(Box::new(exp));
+
+            println!("B. Current token: {:?}", self.curr);
+
+            match self.next() {
+                Some(Token::CloseParenthesis) => break,
+                Some(Token::Comma) => continue,
+                _ => perr!(syntax "Expected parameter name or closing parenthesis.")?,
+            };
+        }
+
+        Ok(Expression::Call(params))
     }
 }
 
@@ -1002,5 +1037,34 @@ mod tests {
         ];
 
         match_programs(programs, expected_results)
+    }
+
+    #[test]
+    fn parsing_function_calls() -> Result<(), Box<dyn Error>> {
+        let expression = vec![
+            "myFunc()",
+            "add(1, 2)",
+            "complex(true, false, 5 + 5)",
+            "nested(func(), func(1, 2), 3 + 3)",
+            "noParams()",
+        ];
+
+        let expected_results = vec![
+            Statement::Expression(Expression::Call(vec![])),
+            Statement::Expression(Expression::Call(vec![int(1), int(2)])),
+            Statement::Expression(Expression::Call(vec![
+                Box::new(Expression::Primary(Primary::True)),
+                Box::new(Expression::Primary(Primary::False)),
+                Box::new(Expression::Binary(int(5), Operator::Addition, int(5))),
+            ])),
+            Statement::Expression(Expression::Call(vec![
+                Box::new(Expression::Call(vec![])),
+                Box::new(Expression::Call(vec![int(1), int(2)])),
+                Box::new(Expression::Binary(int(3), Operator::Addition, int(3))),
+            ])),
+            Statement::Expression(Expression::Call(vec![])),
+        ];
+
+        match_statements(expression, expected_results)
     }
 }

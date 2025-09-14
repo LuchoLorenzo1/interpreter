@@ -12,12 +12,14 @@ pub enum Expression {
     Unary(Operator, Box<Expression>),
     Primary(Primary),
     Variable(String),
+    Call(Vec<Box<Expression>>),
     Assignment(String, Box<Expression>),
 }
 
 impl Expression {
     pub fn exec(&self, scope: &Scope) -> Result<Primary, ParserError> {
         let res = match self {
+            Expression::Call(_) => Primary::Null,
             Expression::Primary(p) => p.clone(),
             Expression::Variable(v) => scope.get(v),
             Expression::Assignment(v, exp) => {
