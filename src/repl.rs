@@ -138,8 +138,8 @@ pub fn repl() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         disable_raw_mode()?;
-        for s in parser.statements {
-            let (p, b) = execute_statement(&s, &scope)?;
+        for s in parser.statements.iter() {
+            let (p, b) = execute_statement(s, scope.clone())?;
             println!("{:?}", p);
             if b {
                 return Ok(());

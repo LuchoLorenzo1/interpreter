@@ -1,29 +1,59 @@
 // use std::mem::discriminant;
 
+use std::rc::Rc;
+
 use crate::executor::Scope;
+use crate::executor::execute_statement;
 use crate::parser::Operator;
 use crate::parser::Primary;
 use crate::parser_error::ParserError;
 use crate::perr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Binary(Box<Expression>, Operator, Box<Expression>),
     Unary(Operator, Box<Expression>),
     Primary(Primary),
     Variable(String),
-    Call(Vec<Box<Expression>>),
+    Call(String, Vec<Box<Expression>>),
     Assignment(String, Box<Expression>),
 }
 
 impl Expression {
-    pub fn exec(&self, scope: &Scope) -> Result<Primary, ParserError> {
+    pub fn exec(&self, scope: Rc<Scope>) -> Result<Primary, ParserError> {
         let res = match self {
-            Expression::Call(_) => Primary::Null,
+            Expression::Call(name, _params) => {
+                println!("{}", name);
+                let (param_names, statements) = match scope.get_fn(name) {
+                    Some(p) => p,
+                    None => perr!(syntax "Function not defined")?,
+                };
+
+                let params = _params
+                    .iter()
+                    .map(|p| p.exec(scope.clone()))
+                    .collect::<Result<Vec<Primary>, ParserError>>()?;
+
+                let child = Scope::from_scope(scope);
+                param_names.iter().zip(params).for_each(|(n, p)| {
+                    child.define(n.clone(), p);
+                });
+
+                let mut r = Primary::Null;
+                for s in statements.iter() {
+                    let (p, is_return) = execute_statement(s, child.clone())?;
+                    if is_return {
+                        r = p;
+                        break;
+                    }
+                }
+
+                r
+            }
             Expression::Primary(p) => p.clone(),
             Expression::Variable(v) => scope.get(v),
             Expression::Assignment(v, exp) => {
-                let p = exp.exec(scope)?;
+                let p = exp.exec(scope.clone())?;
                 let res = scope.set(v, p.clone());
                 if res.is_none() {
                     return perr!(syntax "Variable '{}' not defined", v);
@@ -62,13 +92,13 @@ impl Expression {
 }
 
 fn binary_operation(
-    scope: &Scope,
+    scope: Rc<Scope>,
     a: &Box<Expression>,
     operator: &Operator,
     b: &Box<Expression>,
 ) -> Result<Primary, ParserError> {
     if let Operator::And = operator {
-        let left_resolved = a.exec(scope)?;
+        let left_resolved = a.exec(scope.clone())?;
         if let Primary::Null | Primary::False = left_resolved {
             return Ok(left_resolved);
         }
@@ -76,16 +106,16 @@ fn binary_operation(
     }
 
     if let Operator::Or = operator {
-        let left_resolved = a.exec(scope)?;
+        let left_resolved = a.exec(scope.clone())?;
         if let Primary::Null | Primary::False = left_resolved {
-            return Ok(b.exec(scope)?);
+            return Ok(b.exec(scope.clone())?);
         } else {
             return Ok(left_resolved);
         }
     }
 
-    let left_resolved = a.exec(scope)?;
-    let right_resolved = b.exec(scope)?;
+    let left_resolved = a.exec(scope.clone())?;
+    let right_resolved = b.exec(scope.clone())?;
 
     // if discriminant(&left_resolved) != discriminant(&right_resolved) {
     //     return perr!(syntax "Cannot operate between different types");
@@ -215,7 +245,7 @@ mod tests {
         expressions: Vec<&str>,
         expected_results: Vec<Primary>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         for (i, expr) in expressions.iter().enumerate() {
             let l = Lexer::new_from_str(expr);
@@ -226,7 +256,7 @@ mod tests {
             println!("{:#?}", parser.statements);
 
             let result = match &parser.statements[0] {
-                Statement::Expression(e) => e.exec(&mut scope)?,
+                Statement::Expression(e) => e.exec(scope.clone())?,
                 _ => Primary::Null,
             };
 
@@ -384,7 +414,7 @@ mod tests {
 
             match &parser.statements[0] {
                 Statement::Expression(e) => {
-                    assert!(e.exec(&mut scope).is_err())
+                    assert!(e.exec(scope.clone()).is_err())
                 }
                 _ => {}
             };

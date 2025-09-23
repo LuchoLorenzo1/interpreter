@@ -22,7 +22,7 @@ pub struct Parser<I: Iterator<Item = char>> {
 // unary          -> ( "!" | "-" ) unary | primary ;
 // primary        -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let(String, Expression),
     Return(Expression),
@@ -30,10 +30,10 @@ pub enum Statement {
     Scope(Vec<Statement>),
     If(Expression, Vec<Statement>),
     While(Expression, Vec<Statement>),
-    Function(Vec<String>, Vec<Statement>),
+    Function(String, Vec<String>, Vec<Statement>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
     /// Operators for Equality
     Equality,
@@ -68,7 +68,6 @@ pub enum Operator {
 pub enum Primary {
     Integer(i64),
     String(String),
-    // Variable(String),
     Null,
     False,
     True,
@@ -167,7 +166,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
 
                 let scope = self.parse_scope()?;
                 if let Statement::Scope(statements) = scope {
-                    Statement::Function(params, statements)
+                    Statement::Function(func_name, params, statements)
                 } else {
                     perr!(syntax "Expected a scope after function definition.")?
                 }
@@ -431,9 +430,9 @@ impl<I: Iterator<Item = char>> Parser<I> {
             Some(Token::Keyword(Keyword::Null)) => Primary::Null,
             Some(Token::Identifier(s)) => {
                 if let Some(Token::OpenParenthesis) = self.curr {
-                    return self.parse_function_call_params();
+                    return self.parse_function_call_params(s);
                 }
-                return Ok(Expression::Variable(s.clone()));
+                return Ok(Expression::Variable(s));
             }
             Some(t) => perr!(unexpected t, "Expected primary expression.")?,
             None => perr!(syntax "Unexpected end of input.")?,
@@ -442,25 +441,25 @@ impl<I: Iterator<Item = char>> Parser<I> {
         Ok(Expression::Primary(p))
     }
 
-    pub fn parse_function_call_params(&mut self) -> Result<Expression, ParserError> {
+    pub fn parse_function_call_params(
+        &mut self,
+        func_name: String,
+    ) -> Result<Expression, ParserError> {
         self.next();
 
         if let Some(Token::CloseParenthesis) = self.curr {
             self.next();
-            return Ok(Expression::Call(vec![]));
+            return Ok(Expression::Call(func_name, vec![]));
         }
 
         let mut params: Vec<Box<Expression>> = Vec::new();
         loop {
-            println!("A. Current token: {:?}", self.curr);
             if self.curr.is_none() {
                 perr!(syntax "expected function call arguments")?
             }
 
             let exp = self.expression()?;
             params.push(Box::new(exp));
-
-            println!("B. Current token: {:?}", self.curr);
 
             match self.next() {
                 Some(Token::CloseParenthesis) => break,
@@ -469,7 +468,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
             };
         }
 
-        Ok(Expression::Call(params))
+        Ok(Expression::Call(func_name, params))
     }
 }
 
@@ -991,10 +990,12 @@ mod tests {
 
         let expected_results = vec![
             vec![Statement::Function(
+                "TRUE".into(),
                 vec![],
                 vec![Statement::Return(Expression::Primary(Primary::True))],
             )],
             vec![Statement::Function(
+                "myFunc".into(),
                 vec![],
                 vec![Statement::Let(
                     "x".into(),
@@ -1002,6 +1003,7 @@ mod tests {
                 )],
             )],
             vec![Statement::Function(
+                "add".into(),
                 vec!["a".into(), "b".into()],
                 vec![Statement::Expression(Expression::Binary(
                     Box::new(Expression::Variable("a".into())),
@@ -1010,6 +1012,7 @@ mod tests {
                 ))],
             )],
             vec![Statement::Function(
+                "complex".into(),
                 vec!["a".into(), "b".into(), "c".into()],
                 vec![Statement::If(
                     Expression::Binary(

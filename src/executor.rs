@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     parser::{Primary, Statement},
@@ -6,29 +6,42 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Scope<'a> {
-    variables: RefCell<HashMap<String, Primary>>,
-    prev_scope: Option<&'a Scope<'a>>,
+pub struct Scope {
+    variables: RefCell<HashMap<String, Record>>,
+    prev_scope: Option<Rc<Scope>>,
 }
 
-impl<'a> Scope<'a> {
-    pub fn new() -> Self {
-        Scope {
+#[derive(Debug)]
+pub enum Record {
+    Primary(Primary),
+    Function(Rc<Vec<String>>, Rc<Vec<Statement>>),
+}
+
+impl Scope {
+    pub fn new() -> Rc<Self> {
+        Rc::new(Scope {
             variables: RefCell::new(HashMap::new()),
             prev_scope: None,
-        }
+        })
+    }
+
+    pub fn from_scope(parent: Rc<Scope>) -> Rc<Self> {
+        Rc::new(Scope {
+            variables: RefCell::new(HashMap::new()),
+            prev_scope: Some(parent),
+        })
     }
 
     pub fn set(&self, var: &String, new_p: Primary) -> Option<()> {
         let mut vars = self.variables.borrow_mut();
 
         if let Some(p) = vars.get_mut(var) {
-            *p = new_p;
+            *p = Record::Primary(new_p);
             return Some(());
         }
 
-        if let Some(prev_scope) = self.prev_scope {
-            prev_scope.set(var, new_p);
+        if let Some(ref parent) = self.prev_scope {
+            parent.set(var, new_p);
             return Some(());
         }
 
@@ -36,27 +49,34 @@ impl<'a> Scope<'a> {
     }
 
     pub fn define(&self, var: String, exec: Primary) {
-        let mut vars = self.variables.borrow_mut();
-        vars.insert(var, exec);
+        self.variables
+            .borrow_mut()
+            .insert(var, Record::Primary(exec));
     }
 
     pub fn get(&self, v: &String) -> Primary {
-        let vars = self.variables.borrow();
-        if let Some(p) = vars.get(v) {
+        if let Some(Record::Primary(p)) = self.variables.borrow().get(v) {
             p.clone()
+        } else if let Some(ref parent) = self.prev_scope {
+            parent.get(v)
         } else {
-            if let Some(prev_scope) = self.prev_scope {
-                prev_scope.get(v)
-            } else {
-                Primary::Null
-            }
+            Primary::Null
         }
     }
 
-    fn from_scope(scope: &'a Scope) -> Self {
-        Scope {
-            variables: RefCell::new(HashMap::new()),
-            prev_scope: Some(scope),
+    pub fn define_fn(&self, name: String, params: Vec<String>, statements: Vec<Statement>) {
+        self.variables
+            .borrow_mut()
+            .insert(name, Record::Function(Rc::new(params), Rc::new(statements)));
+    }
+
+    pub fn get_fn(&self, name: &String) -> Option<(Rc<Vec<String>>, Rc<Vec<Statement>>)> {
+        if let Some(Record::Function(p, statements)) = self.variables.borrow().get(name) {
+            Some((p.clone(), statements.clone()))
+        } else if let Some(ref parent) = self.prev_scope {
+            parent.get_fn(name)
+        } else {
+            None
         }
     }
 }
@@ -64,8 +84,8 @@ impl<'a> Scope<'a> {
 pub fn execute(statements: Vec<Statement>) -> Result<Primary, ParserError> {
     let scope = Scope::new();
 
-    for statement in statements {
-        if let (p, true) = execute_statement(&statement, &scope)? {
+    for statement in statements.iter() {
+        if let (p, true) = execute_statement(statement, scope.clone())? {
             return Ok(p);
         }
     }
@@ -73,36 +93,35 @@ pub fn execute(statements: Vec<Statement>) -> Result<Primary, ParserError> {
     Ok(Primary::Null)
 }
 
-/// Returns (Primary, bool) where bool indicates if it's a return statement
 pub fn execute_statement(
     statement: &Statement,
-    scope: &Scope,
+    scope: Rc<Scope>,
 ) -> Result<(Primary, bool), ParserError> {
     match statement {
         Statement::Expression(expr) => {
-            let p = expr.exec(&scope)?;
+            let p = expr.exec(scope.clone())?;
             Ok((p, false))
         }
         Statement::Let(var, expr) => {
-            let value = expr.exec(&scope)?;
+            let value = expr.exec(scope.clone())?;
             scope.define(var.clone(), value.clone());
             Ok((Primary::Null, false))
         }
         Statement::Scope(statements) => {
-            let _scope = Scope::from_scope(scope);
-            for s in statements {
-                if let (p, true) = execute_statement(&s, &_scope)? {
+            let child = Scope::from_scope(scope.clone());
+            for s in statements.iter() {
+                if let (p, true) = execute_statement(s, child.clone())? {
                     return Ok((p, true));
                 }
             }
             Ok((Primary::Null, false))
         }
         Statement::If(conditional, statements) => {
-            let value = conditional.exec(&scope)?;
-            let _scope = Scope::from_scope(scope);
+            let value = conditional.exec(scope.clone())?;
             if let Primary::True = value {
-                for s in statements {
-                    if let (p, true) = execute_statement(&s, &_scope)? {
+                let child = Scope::from_scope(scope.clone());
+                for s in statements.iter() {
+                    if let (p, true) = execute_statement(s, child.clone())? {
                         return Ok((p, true));
                     }
                 }
@@ -110,17 +129,20 @@ pub fn execute_statement(
             Ok((Primary::Null, false))
         }
         Statement::While(conditional, statements) => {
-            while let Primary::True = conditional.exec(&scope)? {
-                let _scope = Scope::from_scope(scope);
-                for s in statements {
-                    if let (p, true) = execute_statement(&s, &_scope)? {
+            while let Primary::True = conditional.exec(scope.clone())? {
+                let child = Scope::from_scope(scope.clone());
+                for s in statements.iter() {
+                    if let (p, true) = execute_statement(s, child.clone())? {
                         return Ok((p, true));
                     }
                 }
             }
             Ok((Primary::Null, false))
         }
-        Statement::Function(_params, _statements) => Ok((Primary::Null, false)),
-        Statement::Return(expr) => Ok((expr.exec(&scope)?, true)),
+        Statement::Function(name, params, statements) => {
+            scope.define_fn(name.clone(), params.clone(), statements.clone());
+            Ok((Primary::Null, false))
+        }
+        Statement::Return(expr) => Ok((expr.exec(scope.clone())?, true)),
     }
 }
