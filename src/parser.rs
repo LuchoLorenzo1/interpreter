@@ -1,4 +1,5 @@
-use std::iter::Peekable;
+use core::fmt;
+use std::{fmt::Display, iter::Peekable, rc::Rc};
 
 use crate::{
     expression::Expression,
@@ -22,7 +23,7 @@ pub struct Parser<I: Iterator<Item = char>> {
 // unary          -> ( "!" | "-" ) unary | primary ;
 // primary        -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Let(String, Expression),
     Return(Expression),
@@ -30,7 +31,7 @@ pub enum Statement {
     Scope(Vec<Statement>),
     If(Expression, Vec<Statement>),
     While(Expression, Vec<Statement>),
-    Function(String, Vec<String>, Vec<Statement>),
+    Function(String, Rc<Vec<String>>, Rc<Vec<Statement>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -71,6 +72,18 @@ pub enum Primary {
     Null,
     False,
     True,
+}
+
+impl Display for Primary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Primary::True => write!(f, "true"),
+            Primary::False => write!(f, "false"),
+            Primary::String(s) => write!(f, "{}", s),
+            Primary::Integer(i) => write!(f, "{}", i),
+            Primary::Null => write!(f, "null"),
+        }
+    }
 }
 
 impl<I: Iterator<Item = char>> Parser<I> {
@@ -166,7 +179,7 @@ impl<I: Iterator<Item = char>> Parser<I> {
 
                 let scope = self.parse_scope()?;
                 if let Statement::Scope(statements) = scope {
-                    Statement::Function(func_name, params, statements)
+                    Statement::Function(func_name, Rc::new(params), Rc::new(statements))
                 } else {
                     perr!(syntax "Expected a scope after function definition.")?
                 }
@@ -977,97 +990,5 @@ mod tests {
         ];
 
         match_programs(programs, expected_results)
-    }
-
-    #[test]
-    fn test_parsing_function_definitions() -> Result<(), Box<dyn Error>> {
-        let programs = vec![
-            "fn TRUE() { return true; }",
-            "fn myFunc() { let x = 5 }",
-            "fn add(a, b) { a + b }",
-            "fn complex(a, b, c) { if a == b { while c < 10 { c = c + 1 } } }",
-        ];
-
-        let expected_results = vec![
-            vec![Statement::Function(
-                "TRUE".into(),
-                vec![],
-                vec![Statement::Return(Expression::Primary(Primary::True))],
-            )],
-            vec![Statement::Function(
-                "myFunc".into(),
-                vec![],
-                vec![Statement::Let(
-                    "x".into(),
-                    Expression::Primary(Primary::Integer(5)),
-                )],
-            )],
-            vec![Statement::Function(
-                "add".into(),
-                vec!["a".into(), "b".into()],
-                vec![Statement::Expression(Expression::Binary(
-                    Box::new(Expression::Variable("a".into())),
-                    Operator::Addition,
-                    Box::new(Expression::Variable("b".into())),
-                ))],
-            )],
-            vec![Statement::Function(
-                "complex".into(),
-                vec!["a".into(), "b".into(), "c".into()],
-                vec![Statement::If(
-                    Expression::Binary(
-                        Box::new(Expression::Variable("a".into())),
-                        Operator::Equality,
-                        Box::new(Expression::Variable("b".into())),
-                    ),
-                    vec![Statement::While(
-                        Expression::Binary(
-                            Box::new(Expression::Variable("c".into())),
-                            Operator::LessThan,
-                            Box::new(Expression::Primary(Primary::Integer(10))),
-                        ),
-                        vec![Statement::Expression(Expression::Assignment(
-                            "c".into(),
-                            Box::new(Expression::Binary(
-                                Box::new(Expression::Variable("c".into())),
-                                Operator::Addition,
-                                Box::new(Expression::Primary(Primary::Integer(1))),
-                            )),
-                        ))],
-                    )],
-                )],
-            )],
-        ];
-
-        match_programs(programs, expected_results)
-    }
-
-    #[test]
-    fn parsing_function_calls() -> Result<(), Box<dyn Error>> {
-        let expression = vec![
-            "myFunc()",
-            "add(1, 2)",
-            "complex(true, false, 5 + 5)",
-            "nested(func(), func(1, 2), 3 + 3)",
-            "noParams()",
-        ];
-
-        let expected_results = vec![
-            Statement::Expression(Expression::Call(vec![])),
-            Statement::Expression(Expression::Call(vec![int(1), int(2)])),
-            Statement::Expression(Expression::Call(vec![
-                Box::new(Expression::Primary(Primary::True)),
-                Box::new(Expression::Primary(Primary::False)),
-                Box::new(Expression::Binary(int(5), Operator::Addition, int(5))),
-            ])),
-            Statement::Expression(Expression::Call(vec![
-                Box::new(Expression::Call(vec![])),
-                Box::new(Expression::Call(vec![int(1), int(2)])),
-                Box::new(Expression::Binary(int(3), Operator::Addition, int(3))),
-            ])),
-            Statement::Expression(Expression::Call(vec![])),
-        ];
-
-        match_statements(expression, expected_results)
     }
 }

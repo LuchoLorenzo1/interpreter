@@ -64,10 +64,10 @@ impl Scope {
         }
     }
 
-    pub fn define_fn(&self, name: String, params: Vec<String>, statements: Vec<Statement>) {
+    pub fn define_fn(&self, name: String, params: Rc<Vec<String>>, statements: Rc<Vec<Statement>>) {
         self.variables
             .borrow_mut()
-            .insert(name, Record::Function(Rc::new(params), Rc::new(statements)));
+            .insert(name, Record::Function(params, statements));
     }
 
     pub fn get_fn(&self, name: &String) -> Option<(Rc<Vec<String>>, Rc<Vec<Statement>>)> {

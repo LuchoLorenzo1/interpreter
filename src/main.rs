@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let res = interpreter::executor::execute(parser.statements);
         match res {
             Err(e) => eprintln!("Error: {:?}", e),
-            Ok(r) => println!("{:?}", r),
+            Ok(r) => println!("{}", r),
         }
 
         return Ok(());

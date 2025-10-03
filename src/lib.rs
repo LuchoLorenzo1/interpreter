@@ -1,3 +1,4 @@
+pub mod builtin;
 pub mod char_reader;
 pub mod executor;
 pub mod expression;

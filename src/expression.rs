@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use crate::builtin::call_builtin_function;
 use crate::executor::Scope;
 use crate::executor::execute_statement;
 use crate::parser::Operator;
@@ -23,10 +24,11 @@ impl Expression {
     pub fn exec(&self, scope: Rc<Scope>) -> Result<Primary, ParserError> {
         let res = match self {
             Expression::Call(name, _params) => {
-                println!("{}", name);
                 let (param_names, statements) = match scope.get_fn(name) {
                     Some(p) => p,
-                    None => perr!(syntax "Function not defined")?,
+                    None => {
+                        return call_builtin_function(name, _params, scope.clone());
+                    }
                 };
 
                 let params = _params
